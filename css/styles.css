@@ -1,0 +1,151 @@
+/* Styles for User Guides */
+
+/* Global Styles */
+
+
+body {
+	color: #a0a0a0;
+	background: #161616;
+}
+
+.centered {
+	text-align: center;
+}
+
+.no-padding {
+	padding: 0px!important;
+}
+
+h3 {
+	color: #fff!important;
+}
+
+a {
+	color: #ffcd30;
+}
+
+a:hover, a:active, a:visited {
+	text-decoration: none;
+	opacity: 0.5;
+	color: #ffcd30;
+}
+
+.home {
+	background: url(../images/home-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.philgeps-api {
+	background: url(../images/philgeps-api-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.philgeps-db {
+	background: url(../images/philgeps-db-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.armm {
+	background: url(../images/open-survey-platform-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.openbub {
+	background: url(../images/openbub-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.ckan-manager {
+	background: url(../images/ckan-manager-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.ckan-platform {
+	background: url(../images/ckan-platform-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.open-data {
+	background: url(../images/open-data.jpg) no-repeat center center fixed, #161616; 
+}
+
+.data-gov {
+	background: url(../images/data-gov-bg.jpg) no-repeat center center fixed, #161616; 
+}
+
+.cover-bg {
+	-webkit-background-size: cover;
+  	-moz-background-size: cover;
+  	-o-background-size: cover;
+  	background-size: cover;
+}
+
+#user-guide-img {
+	margin-top: 100px;
+}
+
+#guide-container p {
+	line-height: 22px;
+}
+
+.guides-list {
+	margin-top: 60px;
+}
+
+
+	.guides-list div {
+		margin-bottom: 50px;
+	}
+
+	.guides-list a:hover {
+		opacity: 1!important;
+	}
+
+	.guides-list a img {
+		border: 1px solid #000;
+	}
+
+	.guides-list a img:hover {
+		border: 1px solid #ffcd30;
+		-webkit-box-shadow: 0px 0px 19px 2px rgba(255,207,48,0.5);
+		-moz-box-shadow: 0px 0px 19px 2px rgba(255,207,48,0.5);
+		box-shadow: 0px 0px 19px 2px rgba(255,207,48,0.5);
+		opacity: 1!important;
+	}
+
+
+/* GUIDES SUB-PAGES */
+
+.subpage-heading {
+	margin-top: 75px;
+	float: left;
+	width: 100%;
+}
+
+.subpage-heading div{
+	text-transform: uppercase;
+	color: #757575;
+	font-weight: bold;
+	font-size: 10px;
+	letter-spacing: 3px;
+}
+
+	.subpage-heading hr {
+		border-top: 1px solid #ffcd30!important;
+	}
+
+#sidebar-img img {
+	margin-top: 20px;
+}
+
+
+#downloads-list {
+	list-style: none;
+	padding: 0px;
+}
+
+	#downloads-list li {
+		background: #000;
+		padding: 7px 15px;
+		margin-bottom: 6px;
+		-webkit-box-shadow: 0px 2px 17px 1px rgba(0,0,0,0.75);
+		-moz-box-shadow: 0px 2px 17px 1px rgba(0,0,0,0.75);
+		box-shadow: 0px 2px 17px 1px rgba(0,0,0,0.75);
+	}
+
+
+
+
