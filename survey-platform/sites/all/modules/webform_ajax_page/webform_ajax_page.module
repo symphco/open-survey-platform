@@ -1,0 +1,245 @@
+<?php
+/**
+ * @file
+ * Ajax page element for webform
+ */
+
+/**
+ * Implements hook_webform_component_info().
+ */
+function webform_ajax_page_webform_component_info() {
+  $components = array();
+
+  $components['ajax_page'] = array(
+    'label' => t('Ajax page'),
+    'description' => t('Ajax page for webform'),
+    'features' => array(
+      'csv' => FALSE,
+      'required' => FALSE,
+      'conditional' => FALSE,
+      'group' => TRUE,
+    ),
+  );
+  return $components;
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function webform_ajax_page_form_alter(&$form, &$form_state, $form_id) {
+  //if there are more than 1 webforms on the page;
+  static $amount = 0; //amount of forms
+  static $panelamount = 0; //amount of ajax pages
+  if (strpos($form_id, 'webform_client_form') !== FALSE) {
+    $panels = array();
+    foreach (element_children($form['submitted']) as $name) {
+      $component = $form['submitted'][$name];
+      if (isset($component['#type']) && $component['#type'] == 'ajax_page') {
+        $panels[] = "<a href='#{$component['#id']}-{$panelamount}'>{$component['#title']}</a>";
+        $form['submitted'][$name]['#id'] = "{$component['#id']}-{$panelamount}";
+        $panelamount++;
+      }
+    }
+
+    if (!empty($panels)) {
+      if ($amount == 0) {
+        $setting = array(
+          'WebFormAjaxPage' => array(
+            'labels' => array(
+              'next' => t(variable_get('webform_ajax_page_next_label', t('Next Page >>'))),
+              'previous' => t(variable_get('webform_ajax_page_prev_label', t('<< Previous Page'))),
+            )
+          ),
+        );
+        drupal_add_js($setting, 'setting');
+      }
+      $setting = array(
+        'WebFormAjaxPage' => array(
+          'forms' => array(
+            $amount => array(
+              'id' => str_replace('_', '-', $form_id),
+              'wrapper' => "webform-page-tabs-{$amount}",
+            ),
+          ),
+        ),
+      );
+      drupal_add_js($setting, 'setting');
+
+      $list = "<ul>\n";
+      $i = 0;
+      $panelnumber = 0;
+      foreach ($panels as $panel) {
+        $list .= "<li class='panel-{$panelnumber}'>$panel</li>\n";
+        $panelnumber++;
+      }
+      $list .= "</ul>\n";
+
+      $form['submitted']['tabs_prefix'] = array(
+        '#type' => 'markup',
+        '#markup' => "<div id='webform-page-tabs-{$amount}'>" . $list,
+        '#weight' => -1
+      );
+
+      $form['submitted']['tabs_suffix'] = array(
+        '#type' => 'markup',
+        '#markup' => '</div>',
+        '#weight' => 1500,
+      );
+
+      $amount++;
+    }
+  }
+  elseif ($form_id == 'webform_admin_settings') {
+
+    $form['buttons']['#weight'] = 1;
+
+    $form['ajax_page'] = array(
+      '#type' => 'fieldset',
+      '#title' => 'Webform Ajax Page',
+      '#description' => 'Webform ajax page settings',
+    );
+
+    $form['ajax_page']['webform_ajax_page_css'] = array(
+      '#type' => 'radios',
+      '#title' => t('Include the standard css provided by the Webform Ajax Page module'),
+      '#description' => t('Warning: Setting this option to "No" will break the webform layout, unless you provide a replacement css of your own'),
+      '#default_value' => variable_get('webform_ajax_page_css', 1),
+      '#options' => array(
+        0 => t('No'),
+        1 => t('Yes'),
+      ),
+    );
+
+    $form['ajax_page']['webform_ajax_page_prev_label'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Label for the "previous page" button'),
+      '#description' => t('This is the label that will appear on the button to go to the previous page'),
+      '#default_value' => variable_get('webform_ajax_page_prev_label', t('<< Previous Page')),
+    );
+
+    $form['ajax_page']['webform_ajax_page_next_label'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Label for the "next page" button'),
+      '#description' => t('This is the label that will appear on the button to go to the previous page'),
+      '#default_value' => variable_get('webform_ajax_page_next_label', t('Next Page >>')),
+    );
+  }
+  elseif ($form_id == "webform_components_form") {
+    $types = array();
+    $node = $form['#node'];
+    foreach ($node->webform['components'] as $component) {
+      $types[] = $component['type'];
+    }
+    if (in_array('pagebreak', $types) && in_array('ajax_page', $types)) {
+      drupal_set_message(t('Warning: You currently have page breaks and ajax pages in your webform. This will break the ajax page functionality.'), 'warning');
+    }
+  }
+}
+
+/**
+ * Implements _webform_defaults_component().
+ */
+function _webform_defaults_ajax_page() {
+  return array(
+    'name' => '',
+    'form_key' => NULL,
+    'pid' => 0,
+    'weight' => 0,
+    'extra' => array(
+      'title_display' => 0,
+      'collapsible' => 0,
+      'collapsed' => 0,
+      'description' => '',
+      'private' => 0,
+    ),
+  );
+}
+
+/**
+ * Implements _webform_render_component().
+ */
+function _webform_render_ajax_page($component, $value = NULL, $filter = TRUE) {
+  $component['weight'] += 10;
+  $class = array('webform-component-ajax-page',  'ui-tabs-panel');
+  $element = array(
+    '#type' => 'ajax_page',
+    '#title' => $filter ? _webform_filter_xss($component['name']) : $component['name'],
+    '#title_display' => $component['extra']['title_display'] ? $component['extra']['title_display'] : NULL,
+    '#weight' => $component['weight'],
+    '#description' => $filter ? _webform_filter_descriptions($component['extra']['description']) : $component['extra']['description'],
+    '#attributes' => array('class' => $class),
+    '#pre_render' => array('webform_element_title_display'),
+    '#webform_component' => $component,
+    '#theme' => 'ajax_page',
+    //id's are made unique in hook_form_alter
+    '#id' => 'webform-component-ajax-page',
+  );
+  return $element;
+}
+
+/**
+ * Implements _webform_theme_component().
+ */
+function _webform_theme_ajax_page() {
+  return array(
+    'ajax_page' => array(
+      'render element' => 'element',
+    ),
+  );
+}
+
+/**
+ * Theme callback
+ */
+function theme_ajax_page($variables) {
+  drupal_add_library('system', 'ui.tabs');
+  $element = $variables['element'];
+  if (variable_get('webform_ajax_page_css', 1)) {
+    drupal_add_css(drupal_get_path('module', 'webform_ajax_page') . '/webform_ajax_page.css');
+  }
+  $element['#children'] = !empty($element['#children']) ? $element['#children'] : drupal_render_children($element);
+  drupal_add_js(drupal_get_path('module', 'webform_ajax_page') . '/webform_ajax_page.js');
+  return '<div id="' . $element['#id'] . '" ' . drupal_attributes($element['#attributes']) . ' >'
+  . ($element['#title'] ? '<h3>' . $element['#title'] . '</h3>' : '')
+  . (isset($element['#description']) && $element['#description'] ? '<div class="description">' . $element['#description'] . '</div>' : '')
+  . (!empty($element['#children']) ? $element['#children'] : '')
+  . (isset($element['#value']) ? $element['#value'] : '') . "</div>\n";
+}
+
+/**
+ * Implements _webform_display_component().
+ */
+function _webform_display_ajax_page($component, $value, $format = 'html') {
+  if ($format == 'text') {
+    $element = array(
+      '#title' => $component['name'],
+      '#weight' => $component['weight'],
+      '#post_render' => array('webform_element_wrapper'),
+      '#theme' => 'ajax_page',
+      '#theme_wrappers' => array('webform_element_text'),
+    );
+  }
+  else {
+    $element = _webform_render_ajax_page($component, $value);
+  }
+
+  $element['#webform_component'] = $component;
+  $element['#format'] = $format;
+
+  return $element;
+}
+
+/**
+ * Implements _webform_edit_component().
+ */
+function _webform_edit_ajax_page($component) {
+  //seems like you can't return an empty form, or not implement this function
+  //without getting a message about it. Since we don't need settings for this
+  //component, we return an empty markup element.
+  $form = array();
+  $form['display']['info'] = array(
+    '#type' => 'markup',
+    '#value' => "",
+  );
+  return $form;
+}

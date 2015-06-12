@@ -1,0 +1,9 @@
+core = 7.x
+name = Openlayers Animated Cluster
+dependencies[] = "libraries"
+dependencies[] = "openlayers"
+description = "Animated Cluster behaviors for OpenLayers"
+package = "OpenLayers"
+
+files[] = behaviors/openlayers_animated_cluster_behavior.inc
+

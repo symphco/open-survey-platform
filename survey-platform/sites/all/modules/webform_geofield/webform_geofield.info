@@ -1,0 +1,12 @@
+name = Webform Geofield
+description = "Geofield for webform."
+package = "Webform"
+dependencies[] = webform
+dependencies[] = geocoder
+core = 7.x
+; Information added by drupal.org packaging script on 2013-10-26
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "webform_geofield"
+datestamp = "1382755769"
+

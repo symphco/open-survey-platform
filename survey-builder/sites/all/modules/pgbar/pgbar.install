@@ -1,0 +1,119 @@
+<?php
+/**
+ * @file
+ * Install and update hooks for the pgbar module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function pgbar_install() {
+  _field_info_collate_types(TRUE);
+  _pgbar_create_default_field();
+}
+
+/**
+ * Implements hook_field_schema().
+ */
+function pgbar_field_schema($field) {
+  if ($field['type'] == 'pgbar') {
+    $columns['options'] = array(
+      'type' => 'blob',
+      'not null' => FALSE,
+      'serialize' => TRUE,
+    );
+    $columns['state'] = array(
+      'type' => 'int',
+      'not null' => FALSE,
+      'default' => 0,
+    );
+  }
+  return array(
+    'columns' => $columns,
+  );
+}
+
+/**
+ * Create default field.
+ */
+function pgbar_update_7003() {
+  _pgbar_create_default_field();
+}
+
+/**
+ * Replace target with generic config field
+ */
+function pgbar_update_7002() {
+  $tables = _pgbar_field_tables();
+  $field = array(
+    'type' => 'text',
+    'not null' => FALSE,
+  );
+  $tables = _pgbar_field_tables();
+  foreach ($tables as $table => $field_name) {
+    db_add_field($table, $field_name . '_options', $field);
+    // serialize(array('target' => array('target' => array($i)))) == 'a:1:{s:6:"target";a:1:{s:6:"target";a:1:{i:0;i:$i;}}}'
+    db_update($table)
+    ->expression("{$field_name}_options", "CONCAT(:a, {$field_name}_target, :b)", array(':a' => 'a:1:{s:6:"target";a:1:{s:6:"target";a:1:{i:0;i:', ':b' => ';}}}'))
+	->execute();
+    db_drop_field($table, $field_name . '_target');
+  }
+}
+
+/**
+ * Add the state field to all progress bars.
+ */
+function pgbar_update_7001() {
+  $field = array(
+    'type' => 'int',
+    'not null' => FALSE,
+    'default' => 0,
+  );
+  $tables = _pgbar_field_tables();
+  foreach ($tables as $table => $field_name) {
+    db_add_field($table, $field_name . '_state', $field);
+  }
+}
+
+function _pgbar_field_tables() {
+  $res = db_query('SELECT field_name, data FROM field_config WHERE type=:type', array(':type' => 'pgbar'));
+  $tables = array();
+  foreach ($res as $row) {
+    $data = unserialize($row->data);
+    if (($d = $data['storage']) && $d['type'] == 'field_sql_storage') {
+      if (isset($d['details'])) {
+        foreach ($d['details']['sql'] as $t) {
+          foreach (array_keys($t) as $table) {
+            $tables[$table] = $row->field_name;
+          }
+        }
+      } else {
+        $tables['field_data_' . $row->field_name] = $row->field_name;
+        $tables['field_revision_' . $row->field_name] = $row->field_name;
+      }
+    }
+  }
+  return $tables; 
+}
+
+function _pgbar_create_default_field() {
+  $field = array(
+    'module' => 'pgbar',
+    'type' => 'pgbar',
+    'field_name' => 'pgbar_default',
+    'active' => '1',
+    'global_block_settings' => '1',
+  );
+  field_create_field($field);
+  $instance = array(
+    'label' => 'Progressbar',
+    'field_name' => 'pgbar_default',
+    'entity_type' => 'node',
+    'bundle' => 'webform',
+    'settings' => array(
+      'source' => 'webform_submissions.inc',
+    ),
+  );
+  field_create_instance($instance);
+}
+

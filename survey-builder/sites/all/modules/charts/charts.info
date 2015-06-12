@@ -1,0 +1,15 @@
+name = Charts
+description = A charting API for Drupal that provides chart elements and integration with Views.
+package = Charts
+core = 7.x
+php = 5.2
+
+files[] = views/charts_plugin_style_chart.inc
+files[] = views/charts_plugin_display_chart.inc
+
+; Information added by drupal.org packaging script on 2013-07-30
+version = "7.x-2.0-beta5"
+core = "7.x"
+project = "charts"
+datestamp = "1375159271"
+

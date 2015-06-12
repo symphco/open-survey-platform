@@ -1,0 +1,58 @@
+<?php
+/**
+ * @file
+ * The main module file for the pgbar module.
+ *
+ * - Defines the pgbar theme function.
+ */
+
+require_once dirname(__FILE__) . '/fields.inc.php';
+
+/**
+ * Implements hook_theme().
+ */
+function pgbar_theme() {
+  $vars = array(
+    'current' => 0,
+    'target' => 0,
+    'style' => NULL,
+    'texts' => array(),
+  );
+  $hooks['pgbar'] = array(
+    'variables' => $vars,
+    'template'  => 'pgbar',
+  );
+  return $hooks;
+}
+
+/**
+ * Theme preprocess function for pgbar.
+ */
+function pgbar_preprocess_pgbar(&$v) {
+  $v['goal_reached'] = $v['current'] >= $v['target'];
+
+  if ($v['style']) {
+    $v['theme_hook_suggestions'][] = 'pgbar__' . $v['style'];
+  }
+
+  $v['percentage'] = min(array($v['current'] / $v['target'] * 100, 100));
+}
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function pgbar_ctools_plugin_directory($module, $plugin) {
+  if ($module == 'pgbar' && $plugin == 'source') {
+    return 'plugins/source';
+  }
+}
+/**
+ * Implements hook_ctools_plugin_type().
+ */
+function pgbar_ctools_plugin_type() {
+  $types['source'] = array(
+    'cache' => TRUE,
+    'extension' => 'inc.php',
+  );
+  return $types;
+}

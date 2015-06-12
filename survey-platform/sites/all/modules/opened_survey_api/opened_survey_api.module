@@ -1,0 +1,104 @@
+<?php
+
+    include_once('survey_api.inc');
+
+    /**
+     * Implements hook_menu
+     */
+    function opened_survey_api_menu() {
+        $items = array();
+        $items['api/v1/surveys'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'opened_survey_api_execute',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+	$items['api/v1/schools'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'school_details',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+	$items['api/v1/surveys/%node'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+	    'page arguments' => array(3),
+            'page callback' => 'opened_survey_api_details',
+            'access callback' => 1,
+            'access arguments' => array(1, 'access content', TRUE),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+	$items['api/v1/psgc'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'psgc_api_details',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+	$items['api/v1/submit'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'webform_submit_data',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+    $items['api/v1/exports'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'download_csv',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+    $items['api/v1/results'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'results_api',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+    $items['api/v1/schoolredirectapi'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'schoolredirect_api',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+    $items['api/v1/schooldetails'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'school_detail_api',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+    $items['api/v1/surveyimages'] = array(
+            'title' => 'Survey API',
+            'description' => 'Survey API',
+            'page callback' => 'survey_images',
+            'access callback' => 1,
+            'access arguments' => array('access content'),
+            'file' => 'survey_api.inc',
+            'type' => MENU_CALLBACK,
+        );
+        return $items;
+    }
+
+?>

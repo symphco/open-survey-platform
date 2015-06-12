@@ -1,0 +1,11 @@
+name = Form builder examples
+description = Form builder support for CCK, Webform, and Profile modules.
+core = 7.x
+dependencies[] = form_builder
+
+; Information added by drupal.org packaging script on 2013-06-19
+version = "7.x-1.4"
+core = "7.x"
+project = "form_builder"
+datestamp = "1371628554"
+

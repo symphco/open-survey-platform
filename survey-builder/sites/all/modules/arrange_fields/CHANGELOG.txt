@@ -1,0 +1,139 @@
+===================
+Changelog for Arrange Fields
+For Drupal 7.x
+===================
+
+2013-11-05
+  Added a small "Donate" paypal link on the form page.  Shameless, I know, but I have to eat too!  Seriously, though,
+  any donation amount is greatly appreciated.
+    
+-----------------
+Previous commits: 
+-----------------
+
+	
+	
+2013-11-03
+  Applied patch from solquimpo in this issue: https://drupal.org/node/2097223, to correct an in-correctly
+  set pre-render value which sometimes results in a warning being thrown from the Webform module.
+  
+  Added support for webform markup fields as per issue: https://drupal.org/node/1968464
+  
+
+2013-07-31
+ Fixed strange CSS issue which caused textareas to resize in certain themes on save.
+ Thanks to spamsammy, here: https://drupal.org/node/1241750#comment-7147666
+ 
+ Added extra handling for date field (does not add resizable handlers if its in a date field)
+ 
+ Added instructions to click the Save position data button twice to make sure the form's height
+ is calculated correctly.
+  
+ 
+2013-02-06
+ Fixed issue where added form_id's were not being trimmed, and \r was added
+ to the end of the settings line for Windows users.
+
+
+2013-01-29
+ Fixed issue #1442932.
+ 
+ Added experimental new feature - Snap to grid when resizing.  This should
+ help line up text fields when needed to resize them.
+
+ Added checks to keep notices from showing up.
+
+5-21-2012
+ Fix for this bug: http://drupal.org/node/1473166.  The issue is that
+ the Ajax file upload field is no longer draggable.  I fixed it by
+ re-arranging how and when the draggable wrappers are added to elements,
+ placing them in a #pre_render function now.
+
+2-26-2012
+ Added ability to control the "grid width" used with Arrange Fields.
+ It is on the settings page.  Default is 10px.  If set to 1px, this
+ allows users to move fields with a complete freedom of movement.
+ Based on issue: http://drupal.org/node/1456534
+
+2-22-2012
+ Changed how the Arrange Fields style tag is set, as well as how
+ the form is targetted in CSS to be more specific.
+ based on advice from this issue: http://drupal.org/node/1450450
+
+2-19-2012
+ Made changes to keep a STRICT warning from appearing, as per this issue:
+ http://drupal.org/node/1170352
+ 
+
+1-28-2012
+ Made changes to fix a persistant issue for some users, where textfields
+ sometimes have a height of only 1px.  To this end, this module no
+ longer attempts to set the height of textfields, only textareas.
+ The orignal issue is: http://drupal.org/node/1241750
+
+
+12-19-2011
+ Added very small CSS tweak, to correct a problem with the webform datepicker component, 
+ which caused it to stack its elements in a weird way. Isse: [#1372978]
+
+9-25-2011
+ Thanks to user drizzi (http://drupal.org/user/226909) for letting me debug on his server, I discovered the
+ solution to an anoying bug affecting several Webforms users.  When you set
+ the label to be "inline" in webforms, a strange interaction with CSS and jQuery UI
+ caused textfields to resize strangely.  From now on, use Arrange Fields to set the
+ label as inline or not.
+ 
+ Also, fixed an issue where sometimes form elements wind up "stacked" on top of each other
+ when arranging fields for the first time.
+ 
+ Also fixed a bug where setting radio buttons/checkboxes to inline, then back to block
+ caused a problem.
+
+9-24-2011
+ Found a bug which was causing certain webform components to not be
+ configurable (they didn't get the configure link on the hover handle),
+ and they were not being recognized as webform components.
+
+9-22-2011
+ Added the ability to specify module include files along with form_id's, 
+ on the Arrange Fields settings page.
+
+6-30-2011
+ Added support for the Mollom module, when using Webforms (it was not
+ arrangable until now)
+
+5-26-2011
+ Added a new "Enable form_id discovery mode" checkbox to the settings
+ page to make it easier to find out form id's on the page.  If checked,
+ administrators will see a printout at the top of every page with a list
+ of what forms are on that page. You can then enter those form_id's into
+ the settings page to arrange them.
+
+4-17-2011
+ Somehow the png graphic for the grid got corrupted, so
+ I am replacing it.
+
+3-19-2011
+ Made minor change to prevent a notice from showing up when
+ arranging a content type (the notice was coming from core's
+ node.pages.inc, line 303).
+
+3-16-2011
+ Made a minor change when looking at elements in the form array
+ to prevent PHP notice messages from appearing.
+
+1-26-2011
+ Made a slight change to init a variable before using it. This
+ was causing a PHP Notice to appear in certain situations.
+
+01-14-2011
+  Tweaking some display issues, and doing my best to get rid
+  of PHP notices being generated from this module.  Also, corrected
+  some instruction text to be correct for D7, instead of D6.
+
+01-13-2011
+  Putting out the first (alpha) release for Drupal 7
+
+01-07-2011
+  Working from the 6x-1.4 version of Arrange Fields to try and create
+  a port for D7. 

@@ -1,0 +1,13 @@
+TODO List
+
+If you wish for more, please post your ideas at:
+Feature request: http://drupal.org/node/1856664
+
+PATCHES WELCOME
+
+1. Provide custom analysis type, to have more relevant charts.
+ 
+2. Add more configuration for the two charting libraries used, such as colors
+   and chart-type specific configuration.
+
+3. Add new charting libraries

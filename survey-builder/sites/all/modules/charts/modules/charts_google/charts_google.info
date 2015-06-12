@@ -1,0 +1,12 @@
+name = Google Charts
+description = Charts module integration with Google Charts.
+package = Charts
+core = 7.x
+dependencies[]  = charts
+
+; Information added by drupal.org packaging script on 2013-07-30
+version = "7.x-2.0-beta5"
+core = "7.x"
+project = "charts"
+datestamp = "1375159271"
+

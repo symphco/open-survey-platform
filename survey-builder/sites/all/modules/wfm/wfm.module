@@ -1,0 +1,824 @@
+<?php
+/**
+ * @file
+ * Main module file for Webform Multiple (WFM).
+ */
+
+define('WFM_UNLIMITED', -1);
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function wfm_form_webform_component_edit_form_alter(&$form, &$form_state) {
+  $component = $form_state['build_info']['args'][1];
+  if (!in_array($component['type'], _wfm_compatible_components())) {
+    return;
+  }
+  $form['wfm'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Multiple values'),
+    '#weight' => 10,
+  );
+  $form['wfm']['max_items'] = array(
+    '#type' => 'select',
+    '#title' => t('Maximum number of values'),
+    '#description' => t("The maximum number of values users can enter for this component. 'Unlimited' will allow users to add as many values as they like."),
+    '#options' => drupal_map_assoc(range(1, 10)) + array(WFM_UNLIMITED => t('Unlimited')),
+    '#default_value' => _wfm_get_max_items($component),
+  );
+  $form['wfm']['min_items'] = array(
+    '#type' => 'select',
+    '#title' => t('Initial (fixed) number of values'),
+    '#options' => drupal_map_assoc(range(1, 10)),
+    '#default_value' => _wfm_get_min_items($component),
+    '#states' => array(
+      'invisible' => array(
+        ':input[name="wfm[max_items]"]' => array('value' => 1),
+      ),
+    ),
+  );
+  $form['wfm']['add_more_text'] = array(
+    '#type' => 'textfield',
+    '#title' => t('"Add another" button text'),
+    '#default_value' => _wfm_get_add_text($component),
+    '#states' => array(
+      'invisible' => array(
+        ':input[name="wfm[max_items]"]' => array('value' => 1),
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_webform_component_presave().
+ *
+ * Save the component's multiple-values settings.
+ */
+function wfm_webform_component_presave(&$component) {
+  if (!isset($component['wfm']['max_items'])) {
+    return;
+  }
+  $max_items = $component['wfm']['max_items'];
+  $component['extra']['wfm_max_items'] = $max_items;
+  $min_items = $component['wfm']['min_items'];
+  // The minimum number of items cannot be greater than the maximum.
+  if ($max_items != WFM_UNLIMITED && $min_items > $max_items) {
+    $min_items = $max_items;
+  }
+  $component['extra']['wfm_min_items'] = $min_items;
+  $component['extra']['wfm_add_more_text'] = $component['wfm']['add_more_text'];
+}
+
+/**
+ * Implements hook_webform_submission_render_alter().
+ */
+function wfm_webform_submission_render_alter(&$renderable) {
+  $node = $renderable['#node'];
+  $submission = $renderable['#submission'];
+  $format = $renderable['#format'];
+  // Process the child elements of the $renderable render array in the same way
+  // that the form elements were processed for the client form.
+  if ($format == 'html' || $format == 'text') {
+    // Pass in a dummy $form_state array.
+    $form_state = array();
+    foreach (element_children($renderable) as $form_key) {
+      $element = &$renderable[$form_key];
+      _wfm_process_elements($element, $form_state, $submission, TRUE, $format);
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function wfm_form_webform_client_form_alter(&$form, &$form_state) {
+
+  // Process form elements so that they can have multiple instances.
+  $form_keys = element_children($form['submitted']);
+  foreach ($form_keys as $form_key) {
+    if (!$form['submitted'][$form_key]) {
+      continue;
+    }
+    _wfm_process_elements($form['submitted'][$form_key], $form_state, $form['#submission']);
+  }
+
+  // Add WFM's validation handler, to replace Webform's own.
+  $key = array_search('webform_client_form_validate', $form['#validate']);
+  unset($form['#validate'][$key]);
+  $form['#validate'][] = 'wfm_validate';
+
+}
+
+/**
+ * Process an element in the Webform to allow multiple values.
+ *
+ * This is called recursively, throughout the form element tree.
+ *
+ * @param array &$element
+ *   The Form API element.
+ * @param array &$form_state
+ *   The Form API form state.
+ * @param stdClass $submission
+ *   The Webform submission object (when displaying or editing an existing
+ *   submission), or an empty array.
+ * @param bool $display
+ *   Whether the element should be themed for display (e.g. when viewing
+ *   results), or as a form input. This is eventually passed on to
+ *   _wfm_component_generate().
+ * @param string $format
+ *   The display format, usually 'html' or 'text' ('html' by default). This is
+ *   also passed on to _wfm_component_generate().
+ */
+function _wfm_process_elements(&$element, &$form_state, $submission, $display = FALSE, $format = 'html') {
+  $component = $element['#webform_component'];
+  $form_key = $component['form_key'];
+  $cid = $component['cid'];
+
+  $element_name = isset($element['#name']) ? $element['#name'] : "submitted[$form_key]";
+  $element_parents = isset($element['#parents']) ? $element['#parents'] : array('submitted', $form_key);
+  $element_wfm_parents = isset($element['#wfm_parents']) ? $element['#wfm_parents'] : array($cid);
+
+  $initial_weight = isset($element['#weight']) ? $element['#weight'] : 1;
+
+  $form_state['wfm_ancestors'][$cid][implode('.', $element_parents)] = $element_parents;
+
+  // Stop processing if this component does not accept multiple values.
+  if (!_wfm_is_multiple($component)) {
+    // Recurse through the element's children.
+    foreach (element_children($element) as $key) {
+      $sub_element = &$element[$key];
+      if (!isset($sub_element['#webform_component'])) {
+        continue;
+      }
+      $sub_component = $sub_element['#webform_component'];
+      $scid = $sub_element['#webform_component']['cid'];
+      $sub_element['#name'] = $element_name . "[$key]";
+      $sub_element['#parents'] = $element_parents;
+      $sub_element['#parents'][] = $key;
+      $sub_element['#wfm_parents'] = $element_wfm_parents;
+      $sub_element['#wfm_parents'][] = $scid;
+      if (empty($sub_component['children'])) {
+        array_unshift($sub_element['#wfm_parents'], $scid);
+      }
+      _wfm_process_elements($sub_element, $form_state, $submission, $display, $format);
+    }
+    return;
+  }
+
+  // Get the current item count for this component.
+  $max_items = _wfm_get_max_items($component);
+  $min_items = _wfm_get_min_items($component);
+
+  // The $delta keys for each component are saved in $form_state so they can be
+  // modified by the add/remove callbacks.
+  $new = FALSE;
+  if (!isset($form_state['wfm_deltas'][$element_name])) {
+    $new = TRUE;
+    $form_state['wfm_deltas'][$element_name] = array();
+  }
+
+  $element_deltas = &$form_state['wfm_deltas'][$element_name];
+
+  // Get the value and the item count from the submission, if there is one, and
+  // if $form_state was not already populated.
+  if ($submission && $new) {
+    if (isset($submission->wfm_data[$cid]) && !empty($component['children'])) {
+      $element_value = array_keys($submission->wfm_data[$cid]);
+    }
+    else {
+      $element_value = drupal_array_get_nested_value($submission->wfm_data, $element_wfm_parents);
+    }
+    if (is_array($element_value)) {
+      $deltas = array_keys($element_value);
+      foreach ($deltas as $delta) {
+        $element_deltas[$delta] = $delta;
+      }
+    }
+  }
+
+  // Pad the $delta keys if there aren't enough.
+  $missing = $min_items - count($element_deltas);
+  if ($missing > 0) {
+    $last_delta = empty($element_deltas) ? -1 : max(array_keys($element_deltas));
+    for ($i = 1; $i <= $missing; $i++) {
+      $next_delta = $last_delta + $i;
+      $element_deltas[$next_delta] = $next_delta;
+    }
+  }
+
+  $item_count = count($element_deltas);
+
+  // Replace the element with a parent container.
+  if (!isset($element['#wfm_wrapper'])) {
+    // Generate the ID that Webform would have given this element if it were a
+    // single instance.
+    //
+    // This ID must remain unique so that the 'Add another item' buttons can
+    // address the right AJAX wrapper (on multiple-instance descendants of
+    // multiple-instance ancestors), but it must also be in the format:
+    //   "webform-component-$form_key"
+    // so that conditionals will work on the first instance. At the moment
+    // there's no way to get conditionals to work on multiple instances without
+    // breaking the HTML specification of unique ID attributes.
+    //
+    // Note that drupal_html_id() will always produce a unique ID, although
+    // unfortunately it isn't fast.
+    $wrapper_id = drupal_html_id('webform-component-' . str_replace('_', '-', $form_key));
+    $element = array(
+      '#type' => 'container',
+      '#wfm_wrapper' => TRUE,
+      '#webform_component' => $component,
+      '#attributes' => array('id' => $wrapper_id, 'class' => array('wfm-container')),
+      '#wrapper_id' => $wrapper_id,
+      '#weight' => $initial_weight,
+      '#name' => $element_name,
+      '#parents' => $element_parents,
+      '#wfm_parents' => $element_wfm_parents,
+    );
+    // Add the 'Add another item' button.
+    if (!$display) {
+      $element['add_more'] = array(
+        '#type' => 'submit',
+        '#value' => _wfm_get_add_text($component),
+        '#weight' => $initial_weight + 0.5,
+        '#limit_validation_errors' => array(array('submitted', $form_key)),
+        '#submit' => array('wfm_add_more_submit'),
+        '#attributes' => array('class' => array('wfm-add')),
+        '#ajax' => array(
+          'callback' => 'wfm_js',
+          'wrapper' => $wrapper_id,
+        ),
+      );
+    }
+  }
+
+  $item_number = 1;
+  foreach ($element_deltas as $delta) {
+
+    // Remove the 'Add another item' button where appropriate.
+    $final = ($item_count == $max_items);
+    if ($final) {
+      unset($element['add_more']);
+    }
+    elseif (!$display) {
+      $element['add_more']['#name'] = $element_name . '_ADD_' . $delta;
+    }
+
+    // Define the parents of the item.
+    $wfm_parents = $element['#wfm_parents'];
+    $wfm_parents[] = $delta;
+
+    // Get the default value of the item.
+    $default_value = NULL;
+    if (!empty($element_value) && empty($component['children'])) {
+      $default_value = drupal_array_get_nested_value($submission->wfm_data, $wfm_parents);
+      $default_value = (array) $default_value;
+    }
+
+    // Generate any new form items needed. They are all added as children of the
+    // parent $element, keyed by $delta.
+    if (!isset($element[$delta])) {
+      $new_element = _wfm_component_generate($component, $display, $default_value, $format);
+      $new_element['#weight'] = $initial_weight + ($item_number / 100);
+      $element[$delta] = $new_element;
+    }
+
+    // Process new and existing form items.
+    $item = &$element[$delta];
+    $item['#name'] = $element_name . "[$delta]";
+    $item['#parents'] = $element['#parents'];
+    $item['#parents'][] = $delta;
+    $item['#wfm_parents'] = $wfm_parents;
+
+    // Add the item's children (e.g. if it's a fieldset).
+    if (!empty($component['children'])) {
+      foreach ($component['children'] as $scid => $sub_component) {
+        $sub_component_key = $sub_component['form_key'];
+        $sub_item_wfm_parents = $item['#wfm_parents'];
+        $sub_item_wfm_parents[] = $scid;
+        if (empty($sub_component['children'])) {
+          array_unshift($sub_item_wfm_parents, $scid);
+        }
+        if (!isset($item[$sub_component_key])) {
+          $sub_item_value = NULL;
+          if ($submission && !_wfm_is_multiple($sub_component)) {
+            $sub_item_value = drupal_array_get_nested_value($submission->wfm_data, $sub_item_wfm_parents, $exists);
+            if ($exists) {
+              $sub_item_value = (array) $sub_item_value;
+            }
+          }
+          $item[$sub_component_key] = _wfm_component_generate($sub_component, $display, $sub_item_value, $format);
+        }
+        $sub_item = &$item[$sub_component_key];
+        $sub_item['#name'] = $item['#name'] . "[$sub_component_key]";
+        $sub_item['#parents'] = $item['#parents'];
+        $sub_item['#parents'][] = $sub_component_key;
+        $sub_item['#wfm_parents'] = $sub_item_wfm_parents;
+        // Recursively process any multiple-value children.
+        _wfm_process_elements($sub_item, $form_state, $submission, $display);
+      }
+    }
+
+    // Append numbering to the form input's title.
+    if ($item_count > 1) {
+      $item['#title'] = t('@title (@num/@count)', array(
+        '@title' => $item['#title'],
+        '@num' => $item_number,
+        '@count' => $item_count,
+      ));
+    }
+
+    $item['#prefix'] = '<div class="wfm-item">';
+    $item['#suffix'] = '</div>';
+
+    // Add a 'Remove' button, to appear just after the form input.
+    if ($min_items > 0 && $item_count > $min_items && !$display) {
+      $element['remove_' . $delta] = array(
+        '#type' => 'submit',
+        '#value' => t('Remove'),
+        '#limit_validation_errors' => array(),
+        '#submit' => array('wfm_remove_submit'),
+        '#attributes' => array(
+          'class' => array('wfm-remove'),
+          'title' => t('Remove "@title"', array('@title' => $item['#title'])),
+        ),
+        '#ajax' => array(
+          'callback' => 'wfm_js',
+          'wrapper' => $element['#wrapper_id'],
+        ),
+        '#weight' => $item['#weight'] + 0.001,
+        '#name' => $element_name . '_REMOVE_' . $delta,
+      );
+      // Include the remove button within the 'wfm-item' div container.
+      $element['remove_' . $delta]['#suffix'] = '</div>';
+      unset($item['#suffix']);
+    }
+
+    $item_number++;
+
+  }
+}
+
+/**
+ * Submit callback for the 'Add another item' button.
+ */
+function wfm_add_more_submit(&$form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  $element = &drupal_array_get_nested_value($form, array_slice($button['#array_parents'], 0, -1));
+  $component = $element['#webform_component'];
+  $element_name = $element['#name'];
+  $element_deltas = &$form_state['wfm_deltas'][$element_name];
+  $item_count = count($element_deltas);
+  $next_delta = max(array_keys($element_deltas)) + 1;
+  $max_items = _wfm_get_max_items($component);
+  if ($max_items == WFM_UNLIMITED || $item_count < $max_items) {
+    $element_deltas[$next_delta] = $next_delta;
+  }
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Submit callback for the 'Remove item' button.
+ */
+function wfm_remove_submit(&$form, &$form_state) {
+  $button = $form_state['triggering_element'];
+  list($element_name, $delta) = explode('_REMOVE_', $button['#name']);
+  unset($form_state['wfm_deltas'][$element_name][$delta]);
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * AJAX callback for the 'Add another item' or 'Remove' buttons.
+ */
+function wfm_js($form, $form_state) {
+  // No need to do anything here, just return the (possibly changed) element.
+  $button = $form_state['triggering_element'];
+  $element = drupal_array_get_nested_value($form, array_slice($button['#array_parents'], 0, -1));
+  return $element;
+}
+
+/**
+ * Validation callback for the webform, running before Webform callbacks.
+ */
+function wfm_validate($form, &$form_state) {
+  $node = $form['#node'];
+  $components = $node->webform['components'];
+
+  // Bypass validation if #limit_validation_errors is an empty array.
+  if (isset($form_state['triggering_element']['#limit_validation_errors']) && !count($form_state['triggering_element']['#limit_validation_errors'])) {
+    return;
+  }
+
+  // Prepare the $form_state so it can be processed by the Webform validator,
+  // and save the values in their original form because they may be needed
+  // later.
+  if (isset($form_state['values']['submitted'])) {
+    $original_submitted = $form_state['values']['submitted'];
+    _wfm_values_prepare($form_state, $components);
+  }
+
+  // Run the Webform validator.
+  webform_client_form_validate($form, $form_state);
+
+  // If the form needs to be rebuilt, for example if there were validation
+  // errors, then reset the $form_state array to its original structure (the
+  // structure it had before _wfm_values_prepare() was run).
+  if (isset($original_submitted) && (form_get_errors() || !empty($form_state['rebuild']))) {
+    $form_state['values']['submitted'] = $original_submitted;
+  }
+
+}
+
+/**
+ * Sanitize the $form_state so that it can be processed by Webform.
+ *
+ * In $form_state['submitted']['values'], Webform expects to get an array like:
+ * @code
+ *   array($parent_key => array($component_key => $value))
+ * @endcode
+ * for every component.
+ *
+ * The value in $value above can be either scalar or a single-dimensional array.
+ */
+function _wfm_values_prepare(&$form_state, $components) {
+
+  // Remove all non-component values, except 'details' and 'op' because they are
+  // needed later by webform_client_form_pages()
+  $details = $form_state['values']['details'];
+  if (isset($form_state['values']['op'])) {
+    $op = $form_state['values']['op'];
+  }
+  form_state_values_clean($form_state);
+  $form_state['values']['details'] = $details;
+  if (isset($op)) {
+    $form_state['values']['op'] = $op;
+  }
+
+  // Build a list of component IDs keyed by their 'form_key' string properties.
+  $cids_by_key = array();
+  foreach ($components as $cid => $component) {
+    $cids_by_key[$component['form_key']] = $cid;
+  }
+
+  $component_ancestors = $form_state['wfm_ancestors'];
+  // Go through all the non-group components, getting their values and
+  // identifying where they should have extra identification added describing
+  // the hierarchy of their parents.
+  foreach ($components as $cid => $component) {
+
+    $form_key = $component['form_key'];
+
+    // Only act on non-group components.
+    if (webform_component_feature($component['type'], 'group')) {
+      continue;
+    }
+
+    // Check whether the component, or any of its ancestors, is multiple-value.
+    $is_multiple_recursive = _wfm_is_multiple_recursive($component, $components);
+    if (!$is_multiple_recursive) {
+      continue;
+    }
+
+    // Loop through all the possible family trees for this component.
+    foreach ($component_ancestors[$cid] as $ancestors) {
+      // Remove 'submitted' from the ancestors array.
+      array_shift($ancestors);
+
+      // Get the component's value.
+      $value = drupal_array_get_nested_value($form_state['values']['submitted'], $ancestors, $set);
+      if (!$set) {
+        continue;
+      }
+
+      // Take the value out of $form_state.
+      _wfm_array_unset_nested_value($form_state['values']['submitted'], $ancestors);
+
+      // Recursively check if the value is empty (equivalent to 0), and if so
+      // stop processing.
+      $value = _wfm_filter_recursive($value);
+      if (!$value) {
+        continue;
+      }
+
+      // Make sure the value is an array;
+      $value = (array) $value;
+
+      // If this component is multiple-value, or if it's a descendant of any
+      // multiple-value components, then prefix each of its array keys with a
+      // string describing the component's ancestors. The array keys are used in
+      // the database column {webform_submitted_data}.`no`.
+      $ancestors_count = count($ancestors);
+      if ($ancestors_count > 1 && $is_multiple_recursive) {
+        $delta_prefix = '';
+        // Each array element will be prefixed by something like '1|2#0|3#0|4',
+        // where the delta keys are the numbers preceded by hash signs, and the
+        // other integers are component IDs.
+        foreach ($ancestors as $key => $ancestor) {
+          if ($key < $ancestors_count) {
+            if ($key > 0) {
+              $delta_prefix .= is_int($ancestor) ? '#' : '|';
+            }
+            // If the ancestor is a form key, convert it to a component ID.
+            if (!is_int($ancestor)) {
+              $ancestor = $cids_by_key[$ancestor];
+            }
+            $delta_prefix .= $ancestor;
+          }
+        }
+        $value_prefixed = array();
+        foreach ($value as $delta => $sub_value) {
+          $new_delta = $delta_prefix . '#' . $delta;
+          $value_prefixed[$new_delta] = $sub_value;
+        }
+        $value = $value_prefixed;
+      }
+
+      // Remove deltas from parents of this value.
+      $value_parents = array_filter($ancestors, 'is_string');
+
+      // Set the value again in $form_state.
+      foreach ($value as $key => $sub_value) {
+        $sub_value_parents = $value_parents;
+        $sub_value_parents[] = $key;
+        drupal_array_set_nested_value($form_state['values']['submitted'], $sub_value_parents, $sub_value, TRUE);
+      }
+
+    }
+
+  }
+
+  // Remove empty arrays from $form_state.
+  $form_state['values']['submitted'] = _wfm_filter_recursive($form_state['values']['submitted']);
+
+}
+
+/**
+ * Implements hook_webform_submission_create_alter().
+ */
+function wfm_webform_submission_create_alter(stdClass $submission, $node, $account, &$form_state) {
+  // Process a submission when it's being created for a preview.
+  if ($submission->preview) {
+    _wfm_process_submission($submission);
+  }
+}
+
+/**
+ * Implements hook_webform_submission_load().
+ */
+function wfm_webform_submission_load(&$submissions) {
+  // Process submissions when they are being loaded from the database: normally
+  // this invoked is when viewing results or when editing an existing
+  // submission.
+  foreach ($submissions as $sid => $submission) {
+    _wfm_process_submission($submission);
+  }
+}
+
+/**
+ * Process a submission to expand data from multiple-value components.
+ */
+function _wfm_process_submission(stdClass $submission) {
+  if (isset($submission->wfm_data)) {
+    return;
+  }
+  $node = node_load($submission->nid);
+  $components = $node->webform['components'];
+  $original_data = $submission->data;
+  $submission->wfm_data = array();
+  foreach ($submission->data as $cid => $data) {
+    if (!isset($components[$cid])) {
+      continue;
+    }
+    $component = $components[$cid];
+    $submission->wfm_data[$cid] = _wfm_submission_data_expand($data);
+    if (_wfm_is_multiple_recursive($component, $components)) {
+      $submission->data[$cid] = (array) _wfm_submission_data_to_string($data);
+    }
+  }
+  _wfm_submission_data_expand_parents($submission->wfm_data, $original_data);
+}
+
+/**
+ * Convert submission data into a descriptive string.
+ */
+function _wfm_submission_data_to_string(array $data) {
+  // Go through each value (as loaded from the database), and find a prefix
+  // consisting of the item number ($delta + 1), potentially preceded by the
+  // item numbers of its ancestors separated by > (a bit like a breadcrumb).
+  $output = '';
+  foreach ($data as $key => $value) {
+    if (preg_match_all('/#([0-9]+)/', $key, $deltas)) {
+      $deltas = $deltas[1];
+      foreach ($deltas as &$delta) {
+        $delta++;
+      }
+      $prefix = implode('>', $deltas);
+    }
+    else {
+      $prefix = $key + 1;
+    }
+    $output .= $prefix . ': ' . $value . "\n\n";
+  }
+  return trim($output);
+}
+
+/**
+ * Expand submission data into a multi-dimensional array.
+ */
+function _wfm_submission_data_expand(array $data) {
+  $output = array();
+  foreach ($data as $key => $value) {
+    if (strpos($key, '|') === FALSE && strpos($key, '#') === FALSE) {
+      $output[$key] = $value;
+      continue;
+    }
+    $key_parts = preg_split('/[#\|]/', $key);
+    drupal_array_set_nested_value($output, $key_parts, $value, TRUE);
+  }
+  return $output;
+}
+
+/**
+ * Add information to wfm_data containing the delta count of parent components.
+ */
+function _wfm_submission_data_expand_parents(&$wfm_data, $data) {
+  foreach ($data as $cid => $value) {
+    foreach ($value as $key => $sub_value) {
+      if (strpos($key, '|') !== FALSE && strpos($key, '#') !== FALSE) {
+        $key_components = explode('|', $key);
+        foreach ($key_components as $part) {
+          if (strpos($part, '#') !== FALSE) {
+            list($pid, $delta) = explode('#', $part);
+            if (!isset($data[$pid]) && !isset($wfm_data[$pid][$delta])) {
+              $wfm_data[$pid][$delta] = $delta;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Filter an array to remove any values that are empty.
+ *
+ * Recurse to remove arrays whose elements are all empty.
+ *
+ * An element is considered empty if its value is '' or NULL.
+ */
+function _wfm_filter_recursive($array) {
+  if (!is_array($array)) {
+    return $array;
+  }
+  $filled = FALSE;
+  foreach ($array as $key => &$value) {
+    if (is_array($value)) {
+      $value = _wfm_filter_recursive($value);
+    }
+    if (!is_array($value) && ($value === '' || $value === NULL)) {
+      unset($array[$key]);
+    }
+    else {
+      $filled = TRUE;
+    }
+  }
+  return $filled ? $array : NULL;
+}
+
+/**
+ * Helper function to produce a render array for a repeatable Webform component.
+ */
+function _wfm_component_generate($component, $display = FALSE, $value = NULL, $format = 'html') {
+
+  $static_cache = &drupal_static(__FUNCTION__, array());
+  $key = $component['cid'] . "_$format";
+  if (isset($static_cache[$key]) && $value === NULL) {
+    return $static_cache[$key];
+  }
+
+  if ($display) {
+    $element = webform_component_invoke($component['type'], 'display', $component, $value, $format);
+  }
+  else {
+    $element = webform_component_invoke($component['type'], 'render', $component, $value);
+    // Reproduce Webform's behaviour from _webform_client_form_add_component();
+    // all elements are marked as validated already, which means normal Drupal
+    // form validation is bypassed. Webform does its own validation via
+    // webform_client_form_validate().
+    $element['#validated'] = TRUE;
+    $element['#webform_validated'] = FALSE;
+  }
+
+  $element['#webform_component'] = $component;
+
+  drupal_alter(($display ? 'webform_component_display' : 'webform_component_render'), $element, $component);
+
+  if ($value === NULL) {
+    $static_cache[$key] = $element;
+  }
+
+  return $element;
+}
+
+/**
+ * Check whether a component takes multiple values.
+ */
+function _wfm_is_multiple(array $component) {
+  $max_items = _wfm_get_max_items($component);
+  return $max_items > 1 || $max_items == WFM_UNLIMITED;
+}
+
+/**
+ * Check whether a component, or any of its ancestors, takes multiple values.
+ */
+function _wfm_is_multiple_recursive($component, $components) {
+  if ($component['pid'] != 0 && isset($components[$component['pid']])) {
+    $parent_component = $components[$component['pid']];
+    if (_wfm_is_multiple_recursive($parent_component, $components)) {
+      return TRUE;
+    }
+  }
+  return _wfm_is_multiple($component);
+}
+
+/**
+ * Get the max_items of a component.
+ *
+ * This is the equivalent of 'cardinality' in the Field system.
+ */
+function _wfm_get_max_items(array $component) {
+  $max_items = 1;
+  if (isset($component['extra']['wfm_max_items'])) {
+    $max_items = (int) $component['extra']['wfm_max_items'];
+  }
+  return $max_items;
+}
+
+/**
+ * Get the parent form keys of a component.
+ */
+function _wfm_get_parent_keys(array $component, $components) {
+  $keys = array();
+  if (!empty($component['pid'])) {
+    $parent_component = $components[$component['pid']];
+    $keys = array_merge($keys, _wfm_get_parent_keys($parent_component, $components));
+  }
+  $keys[] = $component['form_key'];
+  return $keys;
+}
+
+/**
+ * Get the sanitized 'add more' text of a component.
+ *
+ * Default: 'Add another item'.
+ */
+function _wfm_get_add_text(array $component) {
+  $add_more_text = t('Add another item');
+  if (isset($component['extra']['wfm_add_more_text'])) {
+    $add_more_text = check_plain($component['extra']['wfm_add_more_text']);
+  }
+  return $add_more_text;
+}
+
+/**
+ * Get the minimum number of items of a component.
+ */
+function _wfm_get_min_items(array $component) {
+  $min_items = 1;
+  if (isset($component['extra']['wfm_min_items'])) {
+    $min_items = (int) $component['extra']['wfm_min_items'];
+  }
+  return $min_items;
+}
+
+/**
+ * Unset a nested value in an array.
+ */
+function _wfm_array_unset_nested_value(array &$array, array $parents, &$key_existed = NULL) {
+  $unset_key = array_pop($parents);
+  $ref = &drupal_array_get_nested_value($array, $parents, $key_existed);
+  if ($key_existed && is_array($ref) && array_key_exists($unset_key, $ref)) {
+    $key_existed = TRUE;
+    unset($ref[$unset_key]);
+  }
+  else {
+    $key_existed = FALSE;
+  }
+}
+
+/**
+ * Get a list of the components compatible with this module.
+ */
+function _wfm_compatible_components() {
+  $types = array(
+    'email',
+    'fieldset',
+    'name',
+    'number',
+    'textarea',
+    'textfield',
+    'time',
+  );
+  drupal_alter('wfm_compatible_components', $types);
+  return $types;
+}

@@ -1,0 +1,27 @@
+<?php
+/**
+ * Implementation of hook_install.
+ */
+function webform_submission_uuid_install() {
+
+  // Add the UUID column to the webform_submissions table.
+  if (!db_field_exists('webform_submissions', 'uuid')) {
+    db_add_field('webform_submissions', 'uuid', uuid_schema_field_definition());
+    db_add_index('webform_submissions', 'uuid', array('uuid'));
+  }
+
+  // Now synchronize all UUID's
+  webform_submission_uuid_uuid_sync();
+}
+
+/**
+ * Implementation of hook_uninstall
+ */
+function webform_submission_uuid_uninstall() {
+
+  // Remove the UUID column from the webform_submissions table.
+  if (db_field_exists('webform_submissions', 'uuid')) {
+    db_drop_field('webform_submissions', 'uuid');
+    db_drop_index('webform_submissions', 'uuid');
+  }
+}

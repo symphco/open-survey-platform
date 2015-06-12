@@ -1,0 +1,91 @@
+<?php
+
+/**
+ * @file
+ * Create Leaflet Map Beans based on Views GeoJSON page displays.
+ */
+
+/**
+ * Implements hook_bean_types_api_info().
+ */
+function leaflet_geojson_bean_bean_types_api_info() {
+  return array('api' => 4);
+}
+
+/**
+ * Implements hook_bean_types().
+ */
+function leaflet_geojson_bean_bean_types() {
+  $plugins = array();
+  $plugin_path = drupal_get_path('module', 'leaflet_geojson_bean') . '/plugins/bean';
+  $plugins['leaflet_geojson_bean'] = array(
+    'label' => t('Leaflet GeoJSON'),
+    'description' => t('Leaflet Map based on Views GeoJSON page.'),
+    'handler' => array(
+      'class' => 'LeafletGeoJSONBean',
+      'parent' => 'bean',
+    ),
+    'path' => $plugin_path,
+    'file' => 'leaflet_geojson_bean.inc',
+  );
+  return $plugins;
+}
+
+/**
+ * Implements hook_leaflet_geojson_bean_view_features_alter().
+ */
+function leaflet_geojson_bean_leaflet_geojson_bean_view_features_alter(array &$features, array &$context) {
+  $source_info = $context['source_info'];
+  $bean = $context['bean'];
+  $map = &$context['map'];
+
+  // Allow to override map center via bean settings.
+  if (!empty($bean->settings['override_map_settings'])) {
+    if (!empty($bean->settings['map_settings']['zoom'])) {
+      $map['settings']['zoom'] = $bean->settings['map_settings']['zoom'];
+    }
+    if (!empty($bean->settings['map_settings']['center']['lon']) && !empty($bean->settings['map_settings']['center']['lat'])) {
+      $map['center'] = array(
+        'lon' => $bean->settings['map_settings']['center']['lon'],
+        'lat' => $bean->settings['map_settings']['center']['lat'],
+      );
+    }
+  }
+
+  // Add bbox js.
+  if (isset($source_info['bbox'])) {
+    leaflet_geojson_add_bbox_strategy($source_info);
+
+    // Make sure center isn't empty when using bbox strategy.
+    if (empty($map['center'])) {
+      $map['center'] = array('lon' => 0, 'lat' => 0);
+    }
+  }
+  else {
+    $json = _leaflet_geojson_bean_fetch_json($source_info);
+    $features[] = array(
+      'type' => 'json',
+      'json' => $json,
+    );
+  }
+}
+
+
+function _leaflet_geojson_bean_fetch_json($source_info) {
+  // @todo: doesn't work because views_geojson directly outputs and terminates the request.
+  /*
+  if ($source['type'] == 'views_geojson') {
+    $view = views_get_view($source['view']);
+    $output = $view->execute_display($source['view_display']);
+  }
+  */
+  $result = drupal_http_request($source_info['url']);
+  if (in_array( $result->code, array(200, 304))) {
+    $json_string = (isset($result->data)) ? $result->data : '';
+    return drupal_json_decode($json_string);
+  }
+  else {
+    // Error $result->code
+  }
+}
+

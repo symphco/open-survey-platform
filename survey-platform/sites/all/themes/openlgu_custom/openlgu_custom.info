@@ -1,0 +1,29 @@
+
+name = OpenLGU Custom theme
+description = A theme for the OpenLGU website based on art by Insomnia Design.
+version = 1.0
+core = 7.x
+
+stylesheets[all][] = css/bootstrap.css
+stylesheets[all][] = css/style.css
+stylesheets[all][] = css/bootstrap-responsive.css
+stylesheets[all][] = css/orbit-1.3.0.css
+stylesheets[all][] = css/typography.css
+stylesheets[all][] = css/layout.css
+stylesheets[all][] = css/forms.css
+stylesheets[all][] = css/responsive-tables.css
+stylesheets[all][] = css/chosen.css
+stylesheets[all][] = css/ben.css
+stylesheets[all][] = css/arielle.css
+stylesheets[all][] = css/opened.css
+
+scripts[] = js/jquery.orbit-1.3.0.js
+scripts[] = js/responsive-tables.js
+scripts[] = js/chosen.jquery.js
+scripts[] = js/ben.js
+
+regions[featured] = Featured
+regions[content] = Content
+regions[sidebar_first] = Sidebar first
+regions[sidebar_second] = Sidebar second
+regions[sidebar_filter] = Filter sidebar

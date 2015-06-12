@@ -1,0 +1,1784 @@
+<?php
+
+
+/**
+ * Implementation of hook_menu()
+ */
+function arrange_fields_menu() {
+  $items = array();
+  
+  $items["arrange-fields/%"] = array(
+    "title" => "Arrange fields - Form",
+    "page callback" => "arrange_fields_display_form",
+    "page arguments" => array(1),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_CALLBACK,
+  );  
+  
+  $items["arrange-fields/webform/%"] = array(
+    "title" => "Arrange fields - Webform",
+    "page callback" => "arrange_fields_display_webform",
+    "page arguments" => array(2),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_CALLBACK,
+  );  
+
+  $items["arrange-fields/other/%"] = array(
+    "title" => "Arrange fields - Other Forms",
+    "page callback" => "arrange_fields_display_otherform",
+    "page arguments" => array(2),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_CALLBACK,
+  );  
+  
+  // Hook so it fits in nicely with content types tabs.  
+  $items["admin/structure/types/arrange-fields"] = array(
+    "title" => "Arrange form fields",
+    "page callback" => "arrange_fields_display_main",
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_LOCAL_TASK,
+    "weight" => 5,
+  );
+   
+   
+
+   
+  // Admin settings menu...
+  $items["admin/config/arrange-fields"] = array(
+    "title" => "Arrange fields",
+    "description" => "Arrange fields and components on your forms.",
+    "page callback" => "arrange_fields_display_main",
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_NORMAL_ITEM,
+  );
+  $items["admin/config/arrange-fields/forms"] = array(
+    "title" => "Forms",
+    "type" => MENU_DEFAULT_LOCAL_TASK,
+    "weight" => 1,
+  );
+  $items["admin/config/arrange-fields/settings"] = array(
+    "title" => "Settings",
+    "page callback" => "drupal_get_form",
+    "page arguments" => array("arrange_fields_settings_form"),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_LOCAL_TASK,
+    "weight" => 2,
+  );
+  $items["admin/config/arrange-fields/export"] = array(
+    "title" => "Export",
+    "page callback" => "drupal_get_form",
+    "page arguments" => array("arrange_fields_export_form"),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_LOCAL_TASK,
+    "weight" => 3,
+  );
+  $items["admin/config/arrange-fields/import"] = array(
+    "title" => "Import",
+    "page callback" => "drupal_get_form",
+    "page arguments" => array("arrange_fields_import_form"),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_LOCAL_TASK,
+    "weight" => 4,
+  );
+  
+  
+  // Create men hook so it ties in nicely with content types tabs
+  $items["admin/structure/types/manage/%node_type/arrange-fields"] = array(
+    "title" => "Arrange fields",
+    "page callback" => "arrange_fields_display_form",
+    "page arguments" => array(4),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_LOCAL_TASK,
+    "weight" => 3,
+  );
+  
+  // Create the menu hooks so it ties in
+  // nicely with webform.      
+  $items["node/%webform_menu/webform/arrange-fields"] = array(
+    "title" => "Arrange fields",
+    "page callback" => "arrange_fields_display_webform",
+    "page arguments" => array(1),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_LOCAL_TASK,
+    "weight" => 3,
+  );
+    
+  /*  
+   * Not working right now, but I will leave this in place-- maybe someday!
+  // Hook so it fits in nicely with Profile 2 tabs.  
+  $items["admin/structure/profiles/manage/%profile2_type/arrange-fields"] = array(
+    "title" => "Arrange fields",
+    "page callback" => "arrange_fields_display_profile2_form",
+    "page arguments" => array(4),
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_LOCAL_TASK,
+    "weight" => 3,
+  );        
+    */
+    
+  // Menu hooks for the two popups used with drupal and webform fields...
+  $items["arrange-fields/popup-edit-field"] = array(
+    "title" => "Arrange fields - Form",
+    "page callback" => "arrange_fields_popup_edit_field",
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_CALLBACK,
+  );  
+  $items["arrange-fields/popup-close-window"] = array(
+    "title" => "Arrange fields - Form",
+    "page callback" => "arrange_fields_popup_close_window",
+    "access arguments" => array("administer arrange fields"),
+    "type" => MENU_CALLBACK,
+  );  
+
+   
+  
+  return $items;
+}
+ 
+
+
+function arrange_fields_permission() {
+  
+  $arr = array(
+    "administer arrange fields" => array(
+      "title" => t("Administer Arrange Fields settings"),
+      "description" => t("Use and configure Arrange Fields module, as well as export & import settings."),
+    ),
+  );
+  
+  return $arr;
+}
+
+/**
+ * This function returns a form which we will use to configure
+ * the arrange_fields module.  It is called
+ * from menu item:  admin/settings/arrange-fields/settings
+ *
+ * @return array
+ */
+function arrange_fields_settings_form() {
+  $form = array();
+
+  $form["arrange_fields_grid_width"] = array(
+    "#type" => "select",
+    "#title" => t("Grid width"),
+    "#options" => array(1 => "1px", 5 => "5px", 10 => "10px (default)", 15 => "15px", 20 => "20px"),
+    "#default_value" => variable_get("arrange_fields_grid_width", 10),
+    "#description" => t("This setting determines the spacing between elements on the grid (when arranging fields).
+                         For more free-form movement, set to 1px.  More rigid, boxy movement, set to 20px.
+                         If you are unsure what to set, leave this at 10px."),
+  );  
+  
+  $form["arrange_fields_snap_resize"] = array(
+    "#type" => "checkbox",
+    "#title" => t("Experimental - Snap to grid when resizing text boxes and markup?"),
+    "#default_value" => variable_get("arrange_fields_snap_resize", 0),
+    "#description" => t("When resizing textfields, textareas, or markup, should
+                         we automatically snap to the nearest grid width?  This may help
+                         elements line up more cleanly."),
+  );
+  
+  $form["arrange_fields_other_form_ids"] = array(
+    "#type" => "textarea",
+    "#title" => t("Additional form_id's"),
+    "#default_value" => variable_get("arrange_fields_other_form_ids", ""),
+    "#description" => t("Enter any additional form_id's you would like to be
+                      able to arrange, <strong>one per line</strong>.  
+                      Be aware that
+                      this module (Arrange Fields) may not be able to
+                      arrange forms with complex structures.  Also, form_ids that
+                      are longer than 100 characters are allowed, but may not work 
+                      correctly if the first 100 characters are identical between two
+                      or more ids.
+                      <br>
+                      After you enter complete form_id's here and hit Save,
+                      you will be able to arrange them by clicking on them
+                      at the bottom of the ") . l(t("Arrange Fields admin settings page"), "admin/settings/arrange-fields") . ".
+                      <br>
+                      " . t("Example") . ": <br>                      
+                      &nbsp;&nbsp;<strong>my_custom_form_id_1</strong>
+                      <br>
+                      " . t("(Advanced) Include File: ") . "<br>" . t("
+                            You may also specify one required include file after the form_id
+                            in the format <em>form_id:module,include.file.inc</em>") . "<br>
+                            " . t("Example:") . "<br>
+                            &nbsp;&nbsp;<strong>contact_site_form:contact, contact.pages.inc</strong>
+                      ",
+  );
+  
+  $form["arrange_fields_enable_form_id_discovery"] = array(
+    "#type" => "checkbox",
+    "#title" => t("Enable form_id and include file discovery mode"),
+    "#default_value" => variable_get("arrange_fields_enable_form_id_discovery", 0),
+    "#description" => t("If enabled, users with the 'Administer Arrange Fields settings' permission
+                         will see the ID of any form on the page printed out, as well as
+                         any possible include files which might be required.  This can
+                         be very helpful in dicovering form_id's, for use with the 
+                         Additional form_id's box above."),
+  );
+  
+  return system_settings_form($form);
+}
+
+
+
+/**
+ * This function simply provides textareas for the user to copy/paste from
+ * which will allow them to export the arrangement of their forms.
+ * It does not really need to use the form API, since there is no submission,
+ * but I am doing this to make it easier to program.
+ *
+ */
+function arrange_fields_export_form() {
+  $form = array();
+  
+  
+  // We need to look for every type of form in which we have arrangement data on.
+  // The easiest way to do this is to look through the variables table.
+  $res = db_query("SELECT * FROM {variable}
+                   WHERE name LIKE 'arrange_fields_position_data_%%' 
+                   ORDER BY name ");
+  foreach ($res as $cur) {
+    $db_name = $cur->name;
+    
+    // Convert it to a plain string.
+    if (!$db_value = unserialize($cur->value)) {
+      continue;
+    }
+    
+    // Make sure we actually contain arrangement data, and not just an
+    // empty string.
+    if (trim($db_value) == "") {
+      continue;
+    }
+    
+    // Get the form_id from the name.
+    $form_id = str_replace("arrange_fields_position_data_", "", $db_name);
+
+    // If this is a webform, verify that it still exists and has not been
+    // deleted.
+    if (strstr($form_id, "webform_client_form")) {
+      $nid = str_replace("webform_client_form_", "", $form_id);
+      if (!$node = node_load($nid)) {
+        continue;
+      }
+      // Otherwise, grab the title so we can append that to the form_id.
+      $form_id .= " (Webform: $node->title)";
+    }
+    
+    
+    $value = $db_name . "~~!af-name-sep!~~" . $db_value . "~~!af-val-sep!~~";
+    
+    $form[$db_name] = array(
+      "#title" => $form_id,
+      "#type" => "textarea",
+      "#default_value" => $value,
+    );
+    
+  }  
+  
+  return $form;
+}
+
+
+
+/**
+ * We will use this form to let users paste in definitions for form arrangements
+ * which they got from the "export" screen.
+ *
+ */
+function arrange_fields_import_form() {
+  $form = array();
+
+  $form["import"] = array(
+    "#title" => "Import",
+    "#type" => "textarea",
+    "#rows" => 15,
+    "#description" => t("Use this box to import definitions from an Arrange Fields export.
+                       You may paste in more than one definition at a time."),
+    
+  );
+  
+  $form["submit"] = array(
+    "#type" => "submit",
+    "#value" => "Import",
+  );
+  
+  return $form;
+}
+
+
+
+/**
+ * This function will handle the actual importing of arrange fields definitions.
+ *
+ */
+function arrange_fields_import_form_submit($form, $form_state) {
+  
+  $import = trim($form_state["values"]["import"]);
+
+  $definitions = explode("~~!af-val-sep!~~", $import);
+  
+  foreach ($definitions as $definition) {
+    $temp = explode("~~!af-name-sep!~~", $definition);
+    $db_name = trim($temp[0]);
+    $db_value = trim($temp[1]);
+    
+    if ($db_name == "") {
+      continue;
+    }
+        
+    // Let's use variable_set to import the information.
+    variable_set($db_name, $db_value);
+    drupal_set_message($db_name . " " . t("definition was imported successfully."));
+  }
+  
+  
+}
+
+
+/**
+ * This function, which is meant to be displayed in the popup, will just take
+ * the default drupal field's edit form (or the webform field edit form)
+ * and display it for us.  This is to make it more
+ * convienent for the user, so they do not have to go to another page.
+ *
+ * @return string
+ */
+function arrange_fields_popup_edit_field() {
+  
+  $type_name = $_REQUEST["type_name"];
+  $field_name = $_REQUEST["field"];
+
+  $GLOBALS["arrange_fields_in_popup"] = TRUE;
+
+  if ($type_name != "webform") {  
+    
+    module_load_include('inc', 'field_ui', 'field_ui.admin');
+
+    // For reasons which I do not fully understand, sometimes $field_name comes through
+    // a second time as an array.  If this happens, we want to use the original field name.
+    // That is what this business is about with the $_SESSSION.  It's an unpleasant kludge,
+    // and I would greatly appreciate it if someone could explain what it's all about!
+    if (!is_array($field_name)) {
+      $field_name = str_replace("-", "_", $field_name);
+      $_SESSION["arrange_field_popup_edit_field_name"] = $field_name;
+    }
+    else {
+      $field_name = $_SESSION["arrange_field_popup_edit_field_name"];
+      $_SESSION["arrange_field_popup_edit_field_name"] = "";
+    }
+    
+    
+    
+    $instance = field_info_instance("node", $field_name, $type_name);
+
+    // We set this global here, so in our hook_form_alter, we know we need
+    // to change the redirect of the form_state to go back to our other popup.
+    $GLOBALS["arrange_fields_editing_field"] = TRUE;
+    $rtn = drupal_render(drupal_get_form('field_ui_field_edit_form', $instance));
+  }
+  else {
+    // This is a webform!
+    
+    // First, get the webform component from the $field_name, which looks like:
+    // nid_cid.
+    $temp = explode("_", $field_name);
+    $nid = $temp[0];
+    $cid = $temp[1];
+    $component = webform_menu_component_load($cid, $nid, "");
+    
+    // Also load the webform as a node.
+    $node = node_load($nid);
+    
+    // We set this global here, so in our hook_form_alter, we know we need
+    // to change the redirect of the form_state to go back to our other popup.
+    $GLOBALS["arrange_fields_editing_field"] = TRUE;
+    
+    // Now, attempt to display the form.
+    $rtn = drupal_render(drupal_get_form('webform_component_edit_form', $node, $component, FALSE));
+  }
+    
+  return $rtn;
+}
+
+
+/**
+ * After the popup_edit_field has been submitted, the user comes to this page,
+ * which simply instructs them to click a button which will make the opener page
+ * save itself.  This is necessary, or the changes the user made in the popup
+ * will not be reflected on the page!
+ *
+ * @return string
+ */
+function arrange_fields_popup_close_window() {
+  arrange_fields_add_arrange_css_js();
+
+  $GLOBALS["arrange_fields_in_popup"] = TRUE;
+  
+  $rtn = "";
+  
+  $rtn .= "<div style='text-align: center;'>
+            In order for your changes to become visible, you must save and reload
+            the main window:<br><br>
+            <input type='button' value='" . t("Close and Save/Reload Main Window") . "'
+            onClick='arrangeFieldsClosePopup()'>
+           </div>";
+  
+  return $rtn;
+}
+
+
+/**
+ * This is the "main menu" for arrange_fields.  Simply displays a list of
+ * content types or webforms the user may arrange the fields of.
+ *
+ * @return string
+ */
+function arrange_fields_display_main() {
+  $rtn = "";
+  
+  drupal_add_css(drupal_get_path("module", "arrange_fields") . "/css/arrange_fields.css");    
+  
+  $rtn .= t("Select a content type to arrange fields") . "...
+          <ul>";
+  
+  $types = _node_types_build()->types;  
+  foreach ($types as $type) {
+    
+    // To eleminate confusion, let's not display the "webform" content type, if that module
+    // is installed.
+    if ($GLOBALS["arrange_fields_webform_installed"] && $type->type == "webform") {
+      continue;
+    }
+    
+    $rtn .= "<li>" . l($type->name, "arrange-fields/$type->type") . "</li>";
+  
+  }
+  
+  $rtn .= "</ul>";
+  
+  // If webform has been installed, attempt to use any available webforms as well.
+  if ($GLOBALS["arrange_fields_webform_installed"]) {
+    $rtn .= t("Select a webform to arrange fields") . "...
+          <ul>";
+    $is_empty = TRUE;
+    $result = db_query("SELECT * FROM {node} WHERE type = 'webform'");
+    $nodes = array();
+    foreach ($result as $record) {
+      $nodes[] = $record;
+      $is_empty = FALSE;
+    }
+    
+    if ($is_empty) {
+      $rtn .= "<li>" . t("No webforms have been created yet.") . "</li>";
+    }
+    else {
+      foreach ($nodes as $node_res) {
+        
+        $rtn .= "<li>" . l($node_res->title, "arrange-fields/webform/$node_res->nid") . "</li>";
+        
+      }
+    }
+    
+    $rtn .= "</ul>";
+  }
+  
+  // Does the user have any additional form_id's specified they'd like to try
+  // to arrange?
+  $other_form_ids = trim(variable_get("arrange_fields_other_form_ids", ""));
+  if ($other_form_ids != "") {
+    $temp = explode("\n", $other_form_ids);
+    $rtn .= t("Additional form_id's you specified on the Settings tab...");
+    $rtn .= "<ul>";
+    foreach ($temp as $form_id) {
+      $rtn .= "<li>" . l(trim($form_id), "arrange-fields/other/" . trim($form_id)) . "</li>";
+    }
+    $rtn .= "</ul>";
+    $rtn .= "<div class='arrange-fields-other-form-caveat'>";
+    $rtn .= t("Some caveats: Arrange Fields may not work correctly on forms
+              with complex structures.  Also, remember that some forms may
+              appear differently depending on if you are admin, an authorized user,
+              or an anonymous user (like user_register).
+              If you need to arrange a form which only appears for anonymous users,
+              temporarily grant anonymous users the \"administer
+              arrange fields\" permission so you can arrange the form how it
+              needs to look.  Just be sure to take this away when you are done as
+              it introduces a major security risk.");
+    $rtn .= "</div>";
+  }
+  
+  
+  return $rtn;
+}
+
+
+/**
+ * hook_init()
+ * 
+ * The init function is executed at the beginning of every page
+ * load.  Here, I'm just trying to see if the webform module
+ * has been installed, and if so, I set a global variable I can
+ * access later.
+ *
+ */
+function arrange_fields_init() {
+  // Init our global variables in case they do not already exist.  This prevents
+  // PHP from throwing "notices" at the user.
+  
+  if (!isset($GLOBALS["arrange_fields_editing_type"])) {
+    $GLOBALS["arrange_fields_editing_type"] = " ";
+  }
+  
+  if (!isset($GLOBALS["arrange_fields_editing"])) {
+    $GLOBALS["arrange_fields_editing"] = " ";
+  }
+
+  if (!isset($GLOBALS["arrange_fields_editing_field"])) {
+    $GLOBALS["arrange_fields_editing_field"] = FALSE;
+  }
+
+  // is webform installed?
+  if (function_exists("webform_menu")) {
+    $GLOBALS["arrange_fields_webform_installed"] = TRUE;
+  }
+  else {
+    $GLOBALS["arrange_fields_webform_installed"] = FALSE;
+  }
+}
+
+
+/**
+ * Meant to be called by the display_form functions, this will make sure
+ * the necessary module inc's are loaded, and the required js and css files
+ * are added for the actual arranging of fields.
+ *
+ */
+function arrange_fields_add_arrange_css_js() {
+
+  module_load_include('inc', 'node', 'node.pages');
+
+  drupal_add_library('system', 'ui.draggable');
+  drupal_add_library('system', 'ui.dialog');
+  drupal_add_library('system', 'ui.resizable');
+  
+  drupal_add_js(drupal_get_path("module", "arrange_fields") . "/js/arrange_fields_node_edit.js");  // must be included first.
+  drupal_add_js(drupal_get_path("module", "arrange_fields") . "/js/arrange_fields.js");    
+  drupal_add_js(drupal_get_path("module", "arrange_fields") . "/js/arrange_fields_dialog.js");    
+  
+  drupal_add_css(drupal_get_path("module", "arrange_fields") . "/css/arrange_fields.css");    
+
+
+}
+
+
+
+/**
+ * This function will display a form and let us arrange its fields.
+ * It is designed to work with Drupal's content types (not Webform or
+ * programmer-designed forms).
+ **/
+function arrange_fields_display_form($form_type) {
+
+  if (is_object($form_type)) {
+    // Figure out some information about the form.
+    $form_type_name = $form_type->name;
+    $form_type = $form_type->type;
+  }
+  else {
+    $form_type_name = $form_type;
+  }
+
+  //drupal_set_title("Arrange fields - $form_type_name");
+  $rtn = "";
+    
+  $form_id = $form_type . "_node_form";
+  $position_data = variable_get("arrange_fields_position_data_$form_id", FALSE);
+  if ($position_data) {
+    // Meaning, we have position data already for this form, so it is NOT
+    // a brand-new form.  So, we should not pass "true" to the javascript
+    // function arrangeFieldsRepositionToGrid.  Let's add a drupal
+    // setting so we know that is the case.
+    drupal_add_js(array("arrangeFieldsNotNewForm" => TRUE), "setting");
+  }
+  
+  arrange_fields_add_arrange_css_js();  
+  
+  
+  // We want to get the form which will let us save the position
+  // information.  
+  $temp_form = drupal_get_form("arrange_fields_position_form", $form_id, $form_type);
+  $rtn .= drupal_render($temp_form);
+
+  $rtn .= "<div>" . t("Use this form to drag-and-drop fields into the order which
+          you want them to appear on the node/edit page.") . "</div>
+          <div>" . t("You may resize text fields by dragging the right side
+              of the field.") . "</div>";
+
+  $rtn .= "<input type='button' value='add markup' onClick='arrangeFieldsDialogEditMarkup(\"new\");'>";
+  // The form we will be rearranging...
+  $GLOBALS["arrange_fields_editing"] = $form_id;
+  $GLOBALS["arrange_fields_editing_type"] = $form_type;
+  
+  $node_form = new stdClass();
+  $node_form->language = "";  // set here just to keep it from throwing a notice.
+  $node_form->type = $form_type;
+
+  $temp_form = drupal_get_form($form_id, $node_form);
+  $rtn .= drupal_render($temp_form);
+  
+  $rtn .= "<div>" . t("If you need more room, move a field close to the bottom.  The
+          container will resize, adding more room.") . "</div>";
+  
+  $rtn .= arrange_fields_render_dialogs();
+
+  return $rtn; 
+  
+}
+
+
+/**
+ * Similar function as arrange_fields_display_form,
+ * but this is specifically for webforms (with the webform module). 
+ *
+ */
+function arrange_fields_display_webform($nid) {
+  
+  if (is_object($nid)) {
+    // We were passed a node by the menu, so sort out
+    // what is supposed to be the node, and what the nid.
+    $webform_node = $nid;
+    $nid = $webform_node->nid;
+  }
+  else {  
+    $webform_node = node_load($nid);
+  }
+  
+  $form_id = "webform_client_form_$nid";
+  $form_type = "webform";
+  
+  //if (drupal_set_title() == "") {
+  //  drupal_set_title("Arrange fields - Webform - $webform_node->title");
+  //}
+  $rtn = "";
+    
+  $position_data = variable_get("arrange_fields_position_data_$form_id", FALSE);
+  if ($position_data) {
+    // Meaning, we have position data already for this form, so it is NOT
+    // a brand-new form.  So, we should not pass "true" to the javascript
+    // function arrangeFieldsRepositionToGrid.  Let's add a drupal
+    // setting so we know that is the case.
+    drupal_add_js(array("arrangeFieldsNotNewForm" => TRUE), "setting");
+  }
+  
+  arrange_fields_add_arrange_css_js();
+  
+  // We want to get the form which will let us save the position
+  // information.  
+  $temp_form = drupal_get_form("arrange_fields_position_form", $form_id, $form_type);
+  $rtn .= drupal_render($temp_form);
+
+  $rtn .= "<div>" . t("Use this form to drag-and-drop fields into the order which
+          you want them to appear on the webform entry page.") . "</div>
+          <div>" . t("You may resize text fields by dragging the right side
+              of the field.") . "</div>";
+  
+  $rtn .= "<input type='button' value='add markup' onClick='arrangeFieldsDialogEditMarkup(\"new\");'>";
+  
+  // The form we will be rearranging...
+  $GLOBALS["arrange_fields_editing"] = $form_id;
+  $GLOBALS["arrange_fields_editing_type"] = $form_type;
+  
+  $temp_form = drupal_get_form($form_id, $webform_node, NULL, TRUE);
+  $rtn .= drupal_render($temp_form);
+
+  $rtn .= "<div>" . t("If you need more room, move a field close to the bottom, then save positions.  The
+          container will resize, adding more room.") . "</div>";
+  
+  $rtn .= arrange_fields_render_dialogs();
+  
+  return $rtn;
+}
+
+
+
+
+/**
+ * Similar function as arrange_fields_display_form,
+ * but this is specifically for other, more generic forms
+ * on the system.  For example, user_register, or custom
+ * forms which a developer has written.
+ *
+ */
+function arrange_fields_display_otherform($form_id) {
+
+  $form_type = "otherform";
+  
+  // If the form_id has a : in it, it means the user has also specified
+  // include files they want included.
+  // Expected to look a little like this:
+  // form_id : module , include.file
+  // ex:  contact_site_form : contact, contact.pages.inc
+  if (strstr($form_id, ":")) {
+    $temp = explode(":", $form_id);
+    $form_id = trim($temp[0]);
+    $include_data = explode(",", $temp[1]);
+    $include_module = trim($include_data[0]);
+    $include_file = trim($include_data[1]);
+    
+    // Okay, still not done.  The include file looks something like this:
+    // contact.pages.inc
+    // We need to separate the extension off of it.
+    $temp = explode(".", $include_file);
+    $include_ext = trim($temp[count($temp) - 1]);
+    
+    $include_file = trim(str_replace(".$include_ext", "", $include_file));
+
+    // Okay, we FINALLY have enough information to include the file!  Let's give it a try!
+    module_load_include($include_ext, $include_module, $include_file);
+    
+  }
+  
+  drupal_set_title("Arrange fields - Other Forms - $form_id");
+  $rtn = "";
+  
+  $position_data = variable_get("arrange_fields_position_data_$form_id", FALSE);
+  if ($position_data) {
+    // Meaning, we have position data already for this form, so it is NOT
+    // a brand-new form.  So, we should not pass "true" to the javascript
+    // function arrangeFieldsRepositionToGrid.  Let's add a drupal
+    // setting so we know that is the case.
+    drupal_add_js(array("arrangeFieldsNotNewForm" => TRUE), "setting");
+  }
+  
+  arrange_fields_add_arrange_css_js();
+  
+  // We want to get the form which will let us save the position
+  // information.  
+  $temp_form = drupal_get_form("arrange_fields_position_form", $form_id, $form_type);
+  $rtn .= drupal_render($temp_form);
+
+  $rtn .= "<div>" . t("Use this form to drag-and-drop fields into the order which
+          you want them to appear on the form entry page.") . "</div>
+          <div>" . t("You may resize text fields by dragging the right side
+              of the field.") . "</div>";
+
+  $rtn .= "<input type='button' value='add markup' onClick='arrangeFieldsDialogEditMarkup(\"new\");'>";
+  
+  // The form we will be rearranging...
+  $GLOBALS["arrange_fields_editing"] = $form_id;
+  $GLOBALS["arrange_fields_editing_type"] = $form_type;
+   
+  $temp_form = drupal_get_form($form_id);
+  $rtn .= drupal_render($temp_form);
+
+  $rtn .= "<div>" . t("If you need more room, move a field close to the bottom, then save positions.  The
+          container will resize, adding more room.") . "</div>";
+  
+  $rtn .= arrange_fields_render_dialogs();
+  
+  return $rtn;
+}
+
+
+
+/**
+ * Renders the divs which will be used as the jquery dialogs, displayed using
+ * jQuery's .dialog() function.  
+ * 
+ * One will let the administrator manage
+ * details of a field, like width and height of the wrapper.
+ * 
+ * The other will let users add or edit bits of arbitrary markup on the form.
+ *
+ */
+function arrange_fields_render_dialogs() {
+  
+  $rtn = "";
+  
+  $rtn .= "<div id='arrange-fields-config-dialog' title='Configure'>            
+            <table>
+              <tr>
+                <td width='45%'>Wrapper width:</td><td><input type='input' name='af-dialog-width' size='6'></td>
+              </tr>
+              <tr> 
+                <td>Wrapper height:</td><td><input type='input' name='af-dialog-height' size='6'></td>
+              </tr>
+            </table>
+            <div style='font-size: 0.8em; line-height: 1.0em;'>(remember to specify px, %, etc. Leave blank for default.)</div>
+            
+            <div id='arrange-fields-config-dialog-labels'>
+            Label: 
+              <label><input type='radio' name='af-dialog-label-display' value='' checked> default (block)</label>
+              <label><input type='radio' name='af-dialog-label-display' value='inline-block' > inline</label>
+            </div>
+           </div>";
+  
+
+  $rtn .= "<div id='arrange-fields-markup-dialog' title='Markup'>
+              <div><b>Body:</b></div>
+              <textarea name='af-markup-body' class='af-markup-body'></textarea>
+              <div style='font-size: 0.8em; line-height: 1.0em;'>
+                You may enter any valid HTML here.</div>
+              
+              <div style='padding-top: 10px;'><b>Wrapper style</b>='
+                 <input name='af-wrapper-style' class='af-wrapper-style'>
+                 '
+                 <div style='font-size: 0.8em; line-height: 1.0em;'>
+                  Enter style definitions. Ex: background-color: black;
+                 </div>
+              </div>
+              
+              <div style='padding-top: 10px;'><b>Z-index</b>:
+                <label><input type='radio' name='af-markup-z-index' value='201' checked> foreground (default)</label>
+                <label><input type='radio' name='af-markup-z-index' value='75' > background</label>
+                                 
+              </div>
+
+              
+              <div class='af-delete-button'>
+                <button type='button' onClick='arrangeFieldsDialogMarkupDelete();'>Delete</button>
+              </div>
+           </div>";
+  
+  
+  return $rtn;
+  
+}
+
+
+
+
+/**
+ * In this function, we are going to add div's around elements we wish to make
+ * draggable on the page.  The jQuery can then grab onto those divs to make
+ * them draggable.
+ *
+ * @param array $form
+ * @param string $form_type
+ * @param bool $disable_buttons
+ */
+function arrange_fields_add_draggable_wrappers(&$form, $form_type, $disable_buttons = FALSE) {
+
+    
+  // Figure out just what are the fields for this form.
+  if ($form_type == "webform") {    
+    // If we are dealing with a webform, then we need to make sure
+    // we get every element in $form["submitted"], as well as the submit
+    // buttons.  I am doing it this way because webform sometimes represents
+    // its fields in a way that the arrange_fields_get_form_fields cannot
+    // find.
+    $fields = array();
+    $fields[] = array("name" => "submit", "element" => &$form["submit"]);
+    $fields[] = array("name" => "next", "element" => &$form["next"]);
+    $fields[] = array("name" => "previous", "element" => &$form["previous"]);
+    foreach ($form["submitted"] as $name => &$element) {
+      if (is_array($element)) {
+        $fields[] = array("name" => $name, "element" => &$element);
+      }
+    }
+    
+    // If the user is using webform 3.x, there may also be an "actions"
+    // array element, which contains our buttons.
+    if (is_array($form["actions"])) {
+      foreach ($form["actions"] as $name => &$element) {
+        if (is_array($element)) {
+          $fields[] = array("name" => $name, "element" => &$element);
+        }
+      }
+    }
+     
+    // We may need the webform's node later, so let's load it now.
+    if (isset($form["details"]["nid"]["#value"])) {
+      $webform_nid = $form["details"]["nid"]["#value"];
+      $webform_node = node_load($webform_nid);
+    }
+
+    // If using the captcha module, add that element as well.
+    if (isset($form["captcha"]) && is_array($form["captcha"])) {
+      $fields[] = array("name" => "captcha", "element" => &$form["captcha"]);
+    }
+    
+    // If using the mollom captcha module, add that element as well
+    if (isset($form["mollom"]) && is_array($form["mollom"])) {
+      $fields[] = array("name" => "mollom", "element" => &$form["mollom"]);
+    }
+        
+  }
+  else {
+    // Not using webform, so we can use the function "get_form_fields()".
+    $fields = arrange_fields_get_form_fields($form);
+  }
+  
+  // Make each field draggable by adding wrappers to it.
+  foreach ($fields as $field_arr) {
+
+    $field_name = $field_arr["name"];
+    $element = &$field_arr["element"];
+    
+    $element_type = af_get($element["#type"]);
+    
+    // We need to make sure that field_name does not contain trouble characters, like spaces.
+    // The Profile module lets you create fieldsets with spaces in it, for example.    
+    if (isset($form["#node"]) && $form_type != "webform") {
+      // This is a CCK/Fields-based drupal form...      
+      $field_name = preg_replace("/[^a-zA-Z0-9]/", "-", $field_name);
+    }
+    else if ($form_type == "webform") {
+      // For webforms, do NOT convert _'s to -'s
+      $field_name = preg_replace("/[^a-zA-Z0-9\_]/", "-", $field_name);
+    }
+    
+    if (af_get($element["#arrange_fields_added_wrappers"]) == TRUE) {
+      // We have already added wrappers to this element.  This can possibly
+      // happen when we are working on Webforms, based on the way the logic works,
+      // we can have the same elements in there twice.
+      continue;
+    }
+    
+    // Make sure we are not still looking at a hidden or otherwise unwanted
+    // field which might be present because of the way I am doing Webform fields.
+    if (!$element_type
+    || $element_type == ""
+    || $element_type == "hidden" 
+    || $element_type == "token"    
+    || $element_type == "value") {
+      // Just skip to the next one.
+      continue;
+    }
+
+    $edit_link = "";
+    $edit_link = "<div class='arrange-fields-control-handle'>";
+
+    // If this is a regular field, give it an option to edit in a popup.
+    if ($GLOBALS["arrange_fields_editing_type"] == $form_type 
+      && $form_type != ""
+      && (substr($field_name, 0, 6) == "field-")
+     ) {
+        $edit_link .= "<a href='javascript: arrangeFieldsPopupEditField(\"$form_type\", \"$field_name\");'>conf</a>";
+    }      
+
+    // If this is a webform field, give it an option to edit in a popup.
+    if ($form_type == "webform" && is_array($webform_node->webform["components"])) {
+      // We need to figure out the webform_component (cid) of this field.
+      // We will do this by scanning the webform["components"] array for
+      // this field_name      
+      $cid = FALSE;
+      foreach ($webform_node->webform["components"] as $tcid => $c_arr) {
+        if ($c_arr["form_key"] == $field_name) {
+          $cid = $tcid;
+          break;
+        }
+      }
+            
+      if ($cid) {
+        $webform_field_id = $webform_nid . "_" . $cid;      
+        $edit_link .= "<a href='javascript: arrangeFieldsPopupEditField(\"$form_type\", \"$webform_field_id\");'>wf</a>";      
+      }
+    }
+    
+    
+    if ($element_type == "vertical_tabs") {
+      // The vertical tabs need a slightly-altered field name so we know what it is later.
+      $field_name .= "-vertical-tabs";      
+    }    
+    
+    
+    $edit_link .= "<span class='arrange-fields-handle-region'> &nbsp; &nbsp; </span>
+                    <a href='javascript: arrangeFieldsDialogConfigureField(\"$field_name\",\"$element_type\");' class='arrange-fields-config-link' 
+                    title='Configure this field'>&nbsp;</a>";
+    $edit_link .= "</div>";
+    
+
+    $css_class = "draggable-form-item";
+    $css_id = "edit-$field_name-draggable-wrapper";
+
+    // Are we dealing with a fieldset?**     
+    if ($element_type == "fieldset" && $field_name != "captcha") {
+      // Fieldsets get an extra css_class and the ID changes.
+      $css_class .= " draggable-form-item-fieldset";
+      $css_id = "edit-$field_name-fieldset-draggable-wrapper";        
+    }
+    // **The bit about captcha is a hack put in to ensure that Captcha is NOT considered a fieldset.
+    // It seems that at different times during form rendering, the #type property
+    // for it sometimes has "fieldset" and sometimes does not, possibly depending
+    // on other modules installed in the system.  To make it consistent, we are not
+    // going to see it as a fieldset, as that is how it appears for most systems.
+    
+    
+    // Vertical tabs blocks get an extra class around them so we can better target
+    // them in CSS.
+    if ($element_type == "vertical_tabs") {
+      $css_class .= " arrange-fields-vertical-tabs-wrapper ";
+    }
+    
+    // If we are dealing with date fields, add extra classes there too.
+    // Let's also add in a class for whatever element type this is.
+    $css_class .= " arrange-fields-element-type-$element_type ";
+    
+    
+    
+    // Set the prefix and suffix for this field such that we 
+    // wrap a div around it which the jquery can lock onto later to
+    // make it draggable.
+    if (!isset($element["#af_prefix"])) $element["#af_prefix"] = "";
+    if (!isset($element["#af_suffix"])) $element["#af_suffix"] = "";
+    
+    $element["#af_prefix"] .= "<div id='$css_id' class='$css_class'>$edit_link";
+    $element["#af_suffix"] .= "</div>"; 
+   
+    if (!isset($element["#pre_render"])) {
+      $element["#pre_render"] = array();
+    }
+       
+    // We need to use this function to add in our prefix and suffix.  This fixes
+    // a bug with the latest Webform module.
+    $element["#pre_render"][] = "arrange_fields_pre_render";
+        
+    // If the field is a button, and we have chosen to disable buttons, then
+    // disable this one.
+    if ($element_type == "submit" || $element_type == "button") {
+      if ($disable_buttons) {
+          //$element["#attributes"]["disabled"] = "disabled";
+          //$element["#attributes"]["class"] .= " disabled-button ";
+          $element["#disabled"] = TRUE;
+      }        
+    } 
+    
+    // This is essentially the same disable buttons code, but for node content types,
+    // since all those buttons are in a [actions] element.
+    if ($field_name == "actions" && $element["#type"] == "actions" && $disable_buttons) {
+      foreach ($element as &$e) {  
+        if (is_array($e)) {
+          //$e["#attributes"]["disabled"] = "disabled";
+          //$e["#attributes"]["class"] .= " disabled-button ";          
+          $e["#disabled"] = TRUE;
+        } 
+      }
+    }
+    
+    // Webform's markup fields were not showing up correctly, because I think what AF does
+    // to the fields causes them to not be displayed.  However, they are indeed displayed
+    // if we append their "value" (the markup itself) to our custom prefix field.
+    if ($form_type == "webform" && $element_type == "markup") {
+      $element["#af_prefix"] .= $element["#value"];
+    }
+    
+    
+    // Indicate that we have successfully added all the necessary wrappers 
+    // to this element.  This is so we don't do it twice.
+    $element["#arrange_fields_added_wrappers"] = TRUE;
+        
+  }
+  
+  // We set this global so later on we can easily tell if we've already performed this opperation.
+  $GLOBALS["arrange_fields_added_wrappers_" . $form["form_id"]["#value"]] =  TRUE;    
+
+}
+
+
+/**
+ * This function is called before the elements are displayed on screen.
+ * The main thing we wish to do here is move the contents of
+ * #af_prefix and #af_suffix into the real #prefix and #suffix fields.
+ *
+ * @param unknown_type $element
+ * @return unknown
+ */
+function arrange_fields_pre_render($element) {
+  
+  if (!isset($element["#prefix"])) $element["#prefix"] = "";  
+  if (!isset($element["#suffix"])) $element["#suffix"] = "";  
+  
+  // If the type is a managed_file, let's take away the upload button, as it can cause
+  // weird problems with Arrange Fields after uploading.  This is due to some kind of
+  // conflict with the CSS, but I have not be able to figure that out yet.
+  if (af_get($element["#type"]) == "managed_file") {
+
+    if (isset($element["upload_button"])) {
+   //   unset($element["upload_button"]);
+    $element["upload_button"]["#executes_submit_callback"] = FALSE;
+    }
+  }
+ 
+  if (isset($element["#af_prefix"])) {
+    $element["#prefix"] .= $element["#af_prefix"] ;
+    $element["#suffix"] .= $element["#af_suffix"] ;
+  }
+   
+  
+  return $element;
+}
+
+
+/**
+ * This function uses recursion to go through an array (presumably $form).
+ * It will return back an array of references to fields which we might
+ * want to place wrappers around.
+ * 
+ * It is meant to be used by arrange_fields_add_draggable_wrappers().
+ *
+ * @param array $arr
+ * @param string $previous_key
+ * @return array
+ */
+function arrange_fields_get_form_fields(&$arr, $previous_key = "") {
+  
+  $rtn = array();
+  
+  foreach ($arr as $name => &$element) {
+    if (is_array($element)) {
+ 
+/*      // Is this element a fieldset and part of the additional_settings
+      // vertical tabs group?  If so, let's exclude it.
+      if (isset($element["#group"])
+          && $element["#group"] == "additional_settings") {
+          
+          continue;
+      }
+*/      
+      // Regarding the code above, I *think* it would be safe to exclude
+      // ANY element which has it's #group property set, because this is
+      // only used when adding a fieldset to a vertical tab, and in Arrange Fields
+      // we are just going to ignore those.
+      if (isset($element["#group"]) && $element["#group"] != "") {
+        continue;
+      }
+      
+      
+
+      // Is this the buttons element on a node form?  If so, we want
+      // the entire buttons array, NOT each individual button (this was
+      // causing a bug where Diff's View changes and the Delete button
+      // were not arrangeable.
+     if ($name == "buttons"        
+        && !isset($element["#type"]) 
+        && isset($element["submit"])
+        && $element["submit"]["#type"] == "submit") {
+        // Okay, we found it (most likely, anyway).
+        // Let's add it to our return array.                      
+        $rtn[] = array("name" => $name, "element" => &$element);          
+      }      
+      elseif (isset($element["#type"])
+          && $element["#type"] != "hidden"
+          && $element["#type"] != "token"
+          && $element["#type"] != "value" ) {
+        // We found an element!  Save its reference in our return array.
+        
+        // If the name is numeric (as is the case with some Fields elements), we
+        // actually want to use the previous element.
+        if (is_numeric($name) && $previous_key != "") {
+          // Let's use the previous element here, which should be $arr.
+          $rtn[] = array("name" => $previous_key, "element" => &$arr);
+        }
+        else {        
+          // Add to our return array.
+          $rtn[] = array("name" => $name, "element" => &$element);
+        }
+        
+      }
+      else {
+        // This is not a field, but possibly another level of nesting
+        // in our $form.  So, let's recursively call this function
+        // and explore this new level.                
+        $temp = arrange_fields_get_form_fields($element, $name);
+        // It's possible we did indeed find some fields in the nested sub-array
+        // we just explored.  If so, let's add it to the end of our on-going
+        // return array.
+        $rtn = array_merge($rtn, $temp);
+      }
+    }
+  }
+  
+  return $rtn;
+  
+}
+
+
+/**
+ * This function is used to tell the user what module include files have been loaded
+ * on the current page, in an effort to help them figure out which to enter as include files
+ * on the Arrange Fields settings page. 
+ * 
+ *
+ */
+function arrange_fields_get_included_module_files() {
+  
+  $rtn = "";
+  
+  $arr = get_included_files();  
+  foreach ($arr as $file) {
+    /**
+     * This was causing this system to not work correctly, so I am no longer
+     * going to try to get rid of the basepath.
+     */
+    // Get rid of the basepath information.
+    //$temp = explode($GLOBALS["base_path"], $file);
+    //$file = $temp[1];
+    
+
+    // Skip anything that doesn't have "modules" in the name.
+    if (!strstr($file, "modules/")) continue;
+    
+    // If it contains ".module", as in, this is a .module file, we do not care.
+    if (strstr($file, ".module")) continue;
+    
+    // if it contains "devel/", "/entity/" or "/field/", or ".field.inc" we do not care.
+    if (strstr($file, "devel/")) continue;
+    if (strstr($file, "/entity/")) continue;
+    if (strstr($file, "/field/")) continue;
+    if (strstr($file, ".field.inc")) continue;
+    
+    // Now, split again on the modules/ string to get just the module and file name.
+    $temp = explode("modules/", $file);
+    $file = $temp[1];
+    
+    // If the result doesn't have a "." in it, skip it.
+    if (!strstr($file, ".")) continue;
+    
+    $rtn .= "&nbsp; &nbsp; &nbsp; <em>$file</em> <br>";
+  }
+  
+  
+  return $rtn;
+}
+
+
+/**
+ * Implementation of hook_form_alter().
+ *
+ */
+function arrange_fields_form_alter(&$form, &$form_state, $form_id) {
+
+  if (variable_get("arrange_fields_enable_form_id_discovery", 0) && user_access("administer arrange fields")) {
+    drupal_set_message(t("Arrange Fields module: Form ID <strong>") . $form_id . t("</strong> detected.
+                        <br>To turn off this message, visit ") . l("admin/config/arrange-fields/settings", "admin/config/arrange-fields/settings") . t(" and uncheck
+                        the Enable form_id discovery mode checkbox."));
+    
+    $tmf = arrange_fields_get_included_module_files();
+    if ($tmf) {
+      drupal_set_message(t("These are possible include files which <b>may or may not</b> need
+                          to be specified along with the form_id:") . "<br>$tmf" . t("
+                          If you are unsure what these are used for, please ignore them, and just
+                          use the form_id stated above."));
+    }
+    
+  }
+  
+  $form_type = af_get($GLOBALS["arrange_fields_editing_type"]);
+  if (af_get($GLOBALS["arrange_fields_editing"]) == $form_id) {
+    // meaning, we are arranging the fields on the current form_id...
+    // Let's unset the various elements which will just get in the
+    // way of the fields.
+    unset($form["#submit"]);
+    
+    $form["#attributes"]["class"] = "arrange-fields-container";    
+    
+            
+    if (!af_get($GLOBALS["arrange_fields_added_wrappers_" . $form["form_id"]["#value"]])) {
+      arrange_fields_add_draggable_wrappers($form, $form_type, TRUE);
+    }
+
+  }
+
+  // Do we have position data for the content type (form) currently being displayed?
+  // If we do, then let's add styles to the page which contain the position data.
+  if ($position_data = variable_get("arrange_fields_position_data_$form_id", FALSE)) {
+
+    if (strpos($form_id, "webform_client_form") === 0) {
+      $form_type = "webform";
+    }
+
+    // If this is a webform, and we are looking at submission data, then we do not want to try to
+    // arrange any fields.  Doing so (at least at the moment) does not look right.
+    if ($form_type == "webform" && isset($form["submission_info"]) && is_array($form["submission_info"]) && $form["submission_info"]["#type"] == "fieldset") {
+      return;
+    }
+    
+    drupal_add_css(drupal_get_path("module", "arrange_fields") . "/css/arrange_fields.css");    
+    drupal_add_js(drupal_get_path("module", "arrange_fields") . "/js/arrange_fields_node_edit.js");    
+
+    $fid = $form["#id"];  // The form's CSS id.  We will use it later to target just this one form.    
+    
+    if (!isset($form["#attributes"])) {
+      $form["#attributes"] = array();
+      $form["#attributes"]["class"] = "";
+    }
+    
+    if (is_array($form["#attributes"]["class"])) {
+      $form["#attributes"]["class"][0] .= " arrange-fields-container arrange-fields-container-$fid ";
+    } 
+    else {
+      $form["#attributes"]["class"] .= " arrange-fields-container arrange-fields-container-$fid ";
+    }
+    
+     
+    if (!af_get($GLOBALS["arrange_fields_added_wrappers_" . $form["form_id"]["#value"]])) {
+      arrange_fields_add_draggable_wrappers($form, $form_type);
+    }
+
+    // Let's go through and assign the positions.
+    $jsConfigArray = array();
+    $jsMarkupArray = array();
+    $css_markup = $markup_elements = "";
+    $lines = explode(";", $position_data);
+    foreach ($lines as $line) {
+      if (trim($line) == "") continue; // skip blanks
+      
+      $temp = explode(",", $line);
+      $wrapper_id = trim(af_get($temp[0]));
+      $pos_top = trim(af_get($temp[1]));
+      $pos_left = trim(af_get($temp[2]));
+      $element_type = trim(af_get($temp[3]));
+      $element_id = trim(af_get($temp[4]));
+      $width = trim(af_get($temp[5]));
+      $height = trim(af_get($temp[6]));
+      $wrapper_width = trim(af_get($temp[7]));
+      $wrapper_height = trim(af_get($temp[8]));
+      $label_display = trim(af_get($temp[9]));
+      $label_vertical_align = trim(af_get($temp[10]));
+      
+      $text_label_display = $label_display;
+      if ($label_display == "inline-block") {
+        $text_label_display = "inline";
+      }
+      
+      
+      if ($wrapper_id == "~~maxBottom~~") {
+        // This is actually the height of the container.  Let's set that,
+        // then continue.
+        $css_markup .= " .arrange-fields-container-$fid {
+                      height: $pos_top;
+                        }";
+        continue;
+      }
+
+      // Was this actually a markup element which the user added?
+      // If so, add 
+      if ($temp[7] == "~~markup_element~~") {
+
+        $markup_width = af_get($temp[8]);
+        $markup_height = af_get($temp[9]); 
+        $safe_markup_body = trim(af_get($temp[10]));
+        $markup_body = arrange_fields_unconvert_unsafe_chars(trim(af_get($temp[10])));
+        $safe_wrapper_style = trim(af_get($temp[11]));
+        $wrapper_style = arrange_fields_unconvert_unsafe_chars(trim(af_get($temp[11])));
+        $z_index = trim(af_get($temp[12]));
+        
+        $markup_elements .= "
+        <div class='draggable-form-item arrange-fields-draggable-markup' 
+              id='$wrapper_id'>
+          <div class='arrange-fields-control-handle arrange-fields-control-handle-markup'><span class='arrange-fields-handle-region'> &nbsp; &nbsp; </span>
+            <a href='javascript: arrangeFieldsDialogEditMarkup(\"$wrapper_id\");' class='arrange-fields-config-markup-link' title='Configure this markup'>&nbsp;</a>
+          </div>
+          <div class='arrange-fields-markup-body form-item' 
+              id='{$wrapper_id}_body'>$markup_body</div>
+        </div>";
+        
+        $css_markup .= "
+          #$fid #$wrapper_id {
+            top: $pos_top;
+            left: $pos_left;
+            width: $markup_width;
+            height: $markup_height;
+            z-index: $z_index;
+            $wrapper_style
+          }
+        ";
+        
+        // Add this bit of markup to our jsMarkupArray, so it can be
+        // added as a setting later.
+        $jsMarkupArray[$wrapper_id]["markupBody"] = $safe_markup_body;
+        $jsMarkupArray[$wrapper_id]["wrapperStyle"] = $safe_wrapper_style;
+        $jsMarkupArray[$wrapper_id]["zIndex"] = $z_index;
+        
+        continue;
+      }
+      
+      
+      $jsConfigArray[$wrapper_id]["wrapperWidth"] = $wrapper_width;
+      $jsConfigArray[$wrapper_id]["wrapperHeight"] = $wrapper_height;
+      $jsConfigArray[$wrapper_id]["labelDisplay"] = $label_display;
+      $jsConfigArray[$wrapper_id]["labelVerticalAlign"] = $label_vertical_align;
+          
+      // Add to our CSS markup value...
+      $css_markup .= "      
+        #$fid #$wrapper_id{        
+          top: $pos_top;
+          left: $pos_left; 
+        }
+      ";
+
+      
+      // We do not want to try to resize any input fields if this
+      // is the buttons wrapper.  Otherwise it will mess up our buttons.
+      // This usually happens when you have CAPTCHA installed.
+      if ($width != "0px" && $element_type != "" && $element_id == "" && !strstr($wrapper_id, "-vertical-tabs-")) {        
+        
+        // We do not know the element_id in this situation        
+        $css_markup .= "        
+          #$fid #$wrapper_id $element_type.form-text, 
+          #$fid #$wrapper_id $element_type.form-textarea {
+            width: $width;
+            height: $height;
+          }
+          ";
+      }
+      else if ($width != "0px" && $element_type != "" && $element_id != "" && !strstr($wrapper_id, "-vertical-tabs-")) {
+        
+        // We know the element id, which makes this simpler.
+        $css_markup .= "
+          #$fid #$wrapper_id $element_type#$element_id {
+            width: $width;
+            ";
+        // If this is an input field (not a textarea) we do not need to specify the height.
+        // This is hopefully a fix to a bug where, for some users, their textfields get shrunk down
+        // to only 1px.
+        if ($element_type != "input") {          
+          $css_markup .= "
+              height: $height;        
+            ";        
+        }
+        
+        $css_markup .= "    }        ";
+        
+      }
+      
+      // Handle any configurations which were set in the configure dialog.
+      if ($wrapper_width != "") {
+        $css_markup .= " #$fid #$wrapper_id { width: $wrapper_width; } ";
+      }
+      if ($wrapper_height != "") {
+        $css_markup .= "
+          #$fid #$wrapper_id { height: $wrapper_height; } 
+          #$fid #$wrapper_id fieldset { height: 100%; } 
+        ";
+      }
+      if ($label_display != "") {
+        
+        $css_markup .= "
+          #$fid #$wrapper_id .form-item label { 
+            vertical-align: $label_vertical_align; 
+          }
+          #$fid #$wrapper_id .form-item > input, 
+          #$fid #$wrapper_id .form-item > label,
+          #$fid #$wrapper_id .form-item > div,
+          #$fid #$wrapper_id .form-item > div.form-radios > div,
+          #$fid #$wrapper_id .form-item > div.form-checkboxes > div
+          {
+            display: $label_display;
+          }";
+        
+        if ($element_type == "input") {
+          // Because of IE, we must do something special if the input
+          // is a textfield, which is what this is testing for.
+          // Basically, the label cannot have a display of "inline-block",
+          // it must simply be "inline."  However, the textfield itself still
+          // needs to be "inline-block."  Thanks IE!
+          $css_markup .= "
+            #$fid #$wrapper_id .form-item > label
+            {
+              display: $text_label_display;
+            }
+          ";
+        }
+        
+        
+        $css_markup .= "  
+          #$fid #$wrapper_id .form-item div.ui-resizable-handle,
+          #$fid #$wrapper_id .form-item div.description
+          {
+            display: block;
+          }                          
+                ";
+      }
+    }
+    
+    drupal_add_js(array("arrangeFieldsDialogConfigObj" => $jsConfigArray), "setting");
+    drupal_add_js(array("arrangeFieldsDialogMarkupObj" => $jsMarkupArray), "setting");
+    // Add in the user-specified grid width.
+    drupal_add_js(array("arrangeFieldsGridWidth" => variable_get("arrange_fields_grid_width", 10)), "setting");
+    drupal_add_js(array("arrangeFieldsSnapResize" => variable_get("arrange_fields_snap_resize", 0)), "setting");
+        
+    
+    if ($GLOBALS["arrange_fields_editing"] != $form_id) {
+      // Meaning, we are not currently arranging this form.  The user
+      // must actually be putting data into it on the node/edit page.  
+      // Let's remove the extra
+      // styles around the various divs so that it looks more natural.
+      $css_markup .= "
+      
+      #$fid {
+        border: 0;
+        background: none;
+      }
+      
+      #$fid .draggable-form-item {
+        border: 0;
+        background-color: transparent;
+      }
+      
+      ";
+    }
+    
+    
+    // Now, add in our css markup and markup elements...
+    /*$head_array = array(
+      "#tag" => "style",
+      "#attributes" => array(
+        "type" => "text/css",
+      ),
+      "#value" => $css_markup,
+    );*/
+    //drupal_add_html_head($head_array, "arrange_fields_position_data");
+    $form["arrange_fields_css_markup_and_elements"] = array(    
+      "#markup" => "<style>$css_markup</style>$markup_elements",      
+      "#after_build" => array("arrange_fields_add_form_css_js"),  // important if the form fails validation, we still get the CSS and JS added in.
+    );
+
+    
+    // Let's add our modified form back to the cache (needed to get the preview
+    // button to work correctly).
+    form_set_cache($form["#build_id"], $form, $form_state);
+    
+  }
+  
+  
+  // The user is trying to configure a field, and we want to show
+  // it to them in the custom popup.  When they submit that form, we don't
+  // want it to go to Field's (or Webform's) normal destination, 
+  // so we set it to our other popup function.
+  if (($form_id == "field_ui_field_edit_form" || $form_id == "webform_component_edit_form") 
+      && $GLOBALS["arrange_fields_editing_field"] == TRUE) {
+    // Set up our special submit handler to fire off after whatever
+    // submit handler is already there.
+    if (is_array($form["#submit"])) {
+      $form["#submit"][] = "arrange_fields_editing_field_submit";
+    }
+    else {
+      $form["#submit"] = array("arrange_fields_editing_field_submit");
+    }
+    
+  }
+  
+  
+  
+}
+
+
+/**
+ * This function is called after we perform our normal submission when
+ * editing a field's properties in a popup.  It's only purpose is
+ * to override the redirect to send the user to our "close popup" page,
+ * which lets the user close the popup and save/reload the main form.
+ */
+function arrange_fields_editing_field_submit($form, &$form_state) {
+
+  $form_state["redirect"] = "arrange-fields/popup-close-window";
+}
+
+
+/**
+ * This function simply adds the CSS and JS files we need when on the node/edit page.
+ * I have to do it this way (and set this function in an #after_build on the form)
+ * in order to make sure this still gets called, even if the form fails validation.
+ * 
+ * This is not used when actually arranging the fields of a form, but when a user
+ * is entering data into the form.  If they forgot a required field (or whatever)
+ * and failed validation, we need to make sure these files get reloaded for them,
+ * otherwise the field positions will revert back to the default!
+ *
+ */
+function arrange_fields_add_form_css_js($element) {
+  drupal_add_css(drupal_get_path("module", "arrange_fields") . "/css/arrange_fields.css");    
+  drupal_add_js(drupal_get_path("module", "arrange_fields") . "/js/arrange_fields_node_edit.js");    
+  
+  return $element;
+  
+}
+
+
+
+
+/**
+ * Mirror of the javascript function in arrange_fields_dialog.js,
+ * this will convert our custom codes for unsafe characters back to
+ * what they started off as.
+ *
+ * @param string $str
+ * @return string
+ */
+function arrange_fields_unconvert_unsafe_chars($str) {
+
+  $str = str_replace("_~!co%~_", ",", $str);
+  $str = str_replace("_~!sc%~_", ";", $str);
+  $str = str_replace("_~!sq%~_", "'", $str);
+  $str = str_replace("_~!dq%~_", '"', $str);
+  $str = str_replace("_~!nl%~_", "\n", $str);
+  
+  return $str;
+}
+
+
+
+/**
+ * This is the form which we will use to store the position data for the fields.
+ *
+ * @param array $form_state
+ * @param string $form_id
+ * @param string $form_type
+ * @return array
+ */
+function arrange_fields_position_form($form_state1, $form_state2, $form_id, $form_type) {
+  $form = array();
+
+  $form["arrange_fields_form_id"] = array(
+    "#type" => "hidden",
+    "#value" => $form_id,
+  );
+
+  $form["arrange_fields_form_type"] = array(
+    "#type" => "hidden",
+    "#value" => $form_type,
+  );
+  
+  // This field ends up being hidden in CSS.  It
+  // is where we will store a semi-serialized string of all our
+  // position data for all our fields.
+  $form["arrange_fields_position_data"] = array(
+    "#type" => "textfield",
+    "#maxlength" => 99999999999  // trying to make it basically infinite.
+  );                
+  
+  
+  // In a shameless beg for money, I am including this paypal donate button
+  // If it's too tacky, users can easily "hide" it in CSS.  ;)
+  $html = "
+    <div id='paypal-please-donate' style='float:right; max-width:320px; border: 1px solid #ccc; padding: 3px; margin-left: 20px; margin-bottom: 5px; font-size: 0.8em; line-height: 1.5em;'>
+      If you find this module useful, please consider donating to the project maintainer (Richard Peacock).
+      Any amount is greatly appreciated!
+      <div style='text-align: center;'>
+        <a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=8VVAK7KZVTHGE' 
+                target='_blank'><img src='" . $GLOBALS["base_url"] . "/" . drupal_get_path("module", "arrange_fields") . "/paypal-donate-button.png'></a>
+      </div>
+    </div>  
+  ";
+  
+  $form["markup_paypal_beg"] = array(
+    "#markup" => $html,
+  );  
+  
+  
+  
+  $form["save"] = array(
+    "#type" => "submit",
+    "#value" => t("Save position data *"),
+    "#attributes" => array("onClick" => "return arrangeFieldsSavePositions()"),
+  );
+  
+  $form["reset"] = array(
+    "#type" => "button",
+    "#value" => t("Reset position data"),
+    "#attributes" => array("onClick" => "return arrangeFieldsConfirmReset()"),
+  );
+  
+  $form["extra_markup_help"] = array(
+    "#markup" => "<div style='font-size: 0.9em;'>" . t("* To ensure the correct hight of the form is saved, you may need
+                    to save position data twice, once you have finished arranging fields.") . "</div>",
+  );
+  
+  
+  return $form;
+}
+
+
+/**
+ * The primary purpose of this validator is to find out of the user is trying
+ * to reset the form (and restore the form to its orignal state).
+ *
+ */
+function arrange_fields_position_form_validate($form, &$form_state) {
+
+  $form_id = $form_state["values"]["arrange_fields_form_id"];
+  if (stristr($form_state["values"]["op"], "reset")) {
+    variable_set("arrange_fields_position_data_$form_id", "");
+    drupal_set_message(t("Position data for this form has been reset.  It will 
+                      be displayed to the user without any modifications,
+                      in its original state."));
+    
+    // Need to refresh the page in order for the positions to be
+    // fully reset.  This next bit finds out what the current URL is,
+    // then sends the user there again (refreshing the page)
+    $path = isset($_GET['q']) ? $_GET['q'] : '<front>';
+    $link = url($path, array('absolute' => TRUE));
+    drupal_goto($link);    
+  }
+  
+  // This bit is required in order to let javascript submit the form!
+  // (Which happens after you change field settings in the popup, then
+  // click the button which says it is going to save and reload your form).
+  $form_state["submitted"] = TRUE;
+  
+}
+
+/**
+ * We will save the position data into a variable using variable_set.
+ *
+ */
+function arrange_fields_position_form_submit($form, $form_state) {
+  $form_id = $form_state["values"]["arrange_fields_form_id"];
+  $form_type = $form_state["values"]["arrange_fields_form_type"];
+  $position_data = $form_state["values"]["arrange_fields_position_data"];
+ 
+  variable_set("arrange_fields_position_data_$form_id", $position_data);
+  
+  $demo_link = l(t("See demo of most recent save (loads in new window)"), "node/add/" . str_replace("_", "-", $form_type), array("attributes" => array("target" => "_blank")));
+  
+  if ($form_type == "webform") {
+    $nid = str_replace("webform_client_form_", "", $form_id);
+    $demo_link = l(t("See demo of most recent save (loads in new window)"), "node/$nid", array("attributes" => array("target" => "_blank")));
+  }
+  
+  if ($form_type == "otherform") {
+    $demo_link = "";
+  }
+  
+  drupal_set_message(t("Position data saved.") . " " . $demo_link);
+}
+
+
+function arrange_fields_page_alter(&$page) {
+    
+  // If we are on one of our popup pages, we do not want to show any extra content
+  // like sidebars and the like.  Only keep the "content" array, as well
+  // as the properties who are prefixed by a # symbol.
+  if (af_get($GLOBALS["arrange_fields_in_popup"])) {    
+    foreach ($page as $key => $val) {
+      if (!strstr($key, "#") && $key != "content") {
+        unset($page[$key]);    
+      }
+    }
+    
+  }  
+}
+
+
+/**
+ * This is a helper function which will let me attempt to access
+ * indexes in an array which might not exist WITHOUT setting off
+ * a PHP Notice message in Drupal.  A little kludgy?  Perhaps, but
+ * I feel that it makes the code much more readable.
+ * For example, instead of:
+ *   $x = (isset($GLOBALS["xyz"])) ? $GLOBALS["xyz"] : "";
+ * I can just type:
+ *   $x = af_get($GLOBALS["xyz"]);
+ * See what I mean?  Much more simple and readable.
+ **/
+function af_get(&$val) {
+  if (isset($val)) {
+    return $val;
+  }
+  else {
+    return ""; 
+  }
+}

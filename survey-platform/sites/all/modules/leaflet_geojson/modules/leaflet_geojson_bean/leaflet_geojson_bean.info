@@ -1,0 +1,16 @@
+name = "Leaflet GeoJSON Bean"
+description = "Create Leaflet Map Beans based on Views GeoJSON page displays."
+
+core = 7.x
+
+dependencies[] = leaflet_geojson
+dependencies[] = bean
+
+files[] = plugins/bean/leaflet_geojson_bean.inc
+
+; Information added by drupal.org packaging script on 2013-07-12
+version = "7.x-1.0"
+core = "7.x"
+project = "leaflet_geojson"
+datestamp = "1373625671"
+

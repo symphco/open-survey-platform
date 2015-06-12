@@ -1,0 +1,13 @@
+name = Webform Service
+description = Provides services for the Webform module
+package = Services
+dependencies[] = services
+dependencies[] = webform
+core = 7.x
+
+; Information added by drupal.org packaging script on 2013-10-26
+version = "7.x-3.x-dev"
+core = "7.x"
+project = "webform_service"
+datestamp = "1382756125"
+

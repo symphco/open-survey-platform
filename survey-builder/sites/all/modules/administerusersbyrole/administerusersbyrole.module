@@ -1,0 +1,182 @@
+<?php
+
+/**
+ * @file
+ * Provides fine-grained permissions for creating, editing, and deleting users.
+ *
+ * This module allows site builders to set up fine-grained permissions for
+ * allowing users to edit and cancel other users Ñ more specific than
+ * Drupal Core's all-or-nothing 'administer users' permission.  It also
+ * provides and enforces a 'create users' permission.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function administerusersbyrole_permission() {
+  $roles = user_roles();
+  $perms = array();
+  $perms['create users'] = array('title' => 'Create new users');
+  $perms['edit users with no custom roles'] = array('title' => 'Edit users with no custom roles');
+  $perms['cancel users with no custom roles'] = array('title' => 'Cancel users with no custom roles');
+  foreach ($roles as $rid => $role) {
+    foreach (array('edit', 'cancel') as $op) {
+      // edit/cancel x.
+      $perm_string = _administerusersbyrole_build_perm_string($role, $op, FALSE);
+      $perm_title = ucfirst($perm_string);
+      $perms[$perm_string] = array('title' => $perm_title);
+
+      // edit/cancel $op x and other.
+      $perm_string = _administerusersbyrole_build_perm_string($role, $op, TRUE);
+      $perm_title = ucfirst($perm_string);
+      $perms[$perm_string] = array('title' => $perm_title);
+    }
+  }
+  return $perms;
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function administerusersbyrole_menu_alter(&$items) {
+  $items['user/%user/edit']['access callback'] = '_administerusersbyrole_can_edit_user';
+  $items['user/%user/edit']['access arguments'] = array(1);
+  $items['user/%user/cancel']['access callback'] = '_administerusersbyrole_can_cancel_user';
+  $items['user/%user/cancel']['access arguments'] = array(1);
+  $items['admin/people/create']['access arguments'] = array('create users');
+}
+
+/**
+ * Implements hook_init().
+ */
+function administerusersbyrole_init() {
+  if (arg(0) === 'user') {
+    switch (arg(2)) {
+      case 'edit':
+        $uid = arg(1);
+        $account = user_load($uid);
+
+        if (!_administerusersbyrole_can_edit_user($account)) {
+          drupal_set_message(t('You do not have permission to edit %user.', array('%user' => $account->name)), 'error');
+          drupal_goto('user/' . $account->uid);
+        }
+        break;
+
+      case 'cancel':
+        $uid = arg(1);
+        $account = user_load($uid);
+
+        if (!_administerusersbyrole_can_cancel_user($account)) {
+          drupal_set_message(t('You do not have permission to cancel %user.', array('%user' => $account->name)), 'error');
+          drupal_goto('user/' . $account->uid);
+        }
+        break;
+    }
+  }
+}
+
+function _administerusersbyrole_can_edit_user($account) {
+  global $user;
+  if ($account->uid == $user->uid) {
+    return TRUE;
+  }
+
+  // allow only uid1 to edit uid1
+  if ($account->uid == 1) {
+    return FALSE;
+  }
+
+  if ($account->roles === array(DRUPAL_AUTHENTICATED_RID => 'authenticated user')) {
+    if (!user_access('edit users with no custom roles')) {
+      return FALSE;
+    }
+  }
+
+  $allow = TRUE;
+  foreach ($account->roles as $rid => $role) {
+    if ($rid === DRUPAL_AUTHENTICATED_RID) {
+      continue;
+    }
+    if (user_access(_administerusersbyrole_build_perm_string($role, 'edit', TRUE))) {
+      return TRUE;
+    }
+    if (!user_access(_administerusersbyrole_build_perm_string($role, 'edit', FALSE))) {
+      $allow = FALSE;
+    }
+  }
+  return $allow;
+}
+
+function _administerusersbyrole_can_cancel_user($account) {
+  if ($account->uid == 1) {
+    return FALSE;
+  }
+
+  if ($account->roles === array(DRUPAL_AUTHENTICATED_RID => 'authenticated user')) {
+    if (!user_access('cancel users with no custom roles')) {
+      return FALSE;
+    }
+  }
+
+  $allow = TRUE;
+  foreach ($account->roles as $rid => $role) {
+    if ($rid === DRUPAL_AUTHENTICATED_RID) {
+      continue;
+    }
+    if (user_access(_administerusersbyrole_build_perm_string($role, 'cancel', TRUE))) {
+      return TRUE;
+    }
+    if (!user_access(_administerusersbyrole_build_perm_string($role, 'cancel', FALSE))) {
+      $allow = FALSE;
+    }
+  }
+  return $allow;
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function administerusersbyrole_form_user_multiple_cancel_confirm_alter(&$form, &$form_state) {
+  $anyallowed = FALSE;
+  foreach (array_filter($form_state['post']['accounts']) as $uid => $value) {
+    $account = user_load($uid);
+    if (_administerusersbyrole_can_cancel_user($account)) {
+      $anyallowed = TRUE;
+    }
+    else {
+      drupal_set_message(t('You do not have permission to cancel %user.', array('%user' => $account->name)), 'error');
+      unset($form_state['post']['accounts'][$uid]);
+      unset($form['accounts'][$uid]);
+    }
+  }
+  if (!$anyallowed) {
+    drupal_goto( drupal_substr($form['#action'], 1) );
+  }
+}
+
+/**
+ * Implements hook_user_update().
+ */
+function administerusersbyrole_user_update(&$edit, $account, $category) {
+  if ($category === 'account') {
+    if (!_administerusersbyrole_can_edit_user($account)) {
+      if (isset($edit['status'])) {
+        $action = $edit['status'] ? t('unblock') : t('block');
+        drupal_set_message(t('You do not have permission to !action %user.', array('!action' => $action, '%user' => $account->name)), 'error');
+        unset($edit['status']);
+      }
+    }
+  }
+}
+
+/**
+ * Generates a permission string for a given a role name.
+ */
+function _administerusersbyrole_build_perm_string($role_name, $op = 'edit', $other = FALSE) {
+  $perm = "$op users with role ";
+  $perm .= preg_replace('/[^a-zA-Z0-9]/', '', $role_name);
+  if ($other) {
+    $perm .= ' and other roles';
+  }
+  return $perm;
+}

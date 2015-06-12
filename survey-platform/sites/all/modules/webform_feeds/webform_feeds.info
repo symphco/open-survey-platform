@@ -1,0 +1,7 @@
+name = Webform Feeds
+description = "Adds the ability to import webforms using Feeds."
+core = 7.x
+package = Feeds
+
+dependencies[] = feeds
+dependencies[] = webform

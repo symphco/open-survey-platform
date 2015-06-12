@@ -1,0 +1,193 @@
+<?php
+/**
+ * @file
+ * A module that adjusts the zoom level on Leaflet map.
+ */
+
+function openlgu_tweaks_leaflet_map_info() {
+  return array(
+    'custom map' =>
+    array(
+      'label' => 'custom map',
+      'description' => t('Leaflet map with custom zoom settings.'),
+      'settings' => array(
+        'dragging' => TRUE,
+        'touchZoom' => TRUE,
+        'scrollWheelZoom' => TRUE,
+        'doubleClickZoom' => TRUE,
+        'zoomControl' => TRUE,
+        'attributionControl' => TRUE,
+        'trackResize' => TRUE,
+        'fadeAnimation' => TRUE,
+        'zoomAnimation' => TRUE,
+        'closePopupOnClick' => TRUE,
+        'layerControl' => FALSE,
+        'maxZoom' => 12,
+        'zoom' => 6,
+      ),
+      'layers' => array(
+	      'layer' => array(
+	        'type' => 'google',
+	        'urlTemplate' => '//mt{s}.googleapis.com/vt?x={x}&y={y}&z={z}',
+	        'options' => array(
+	          'attribution' => '',
+	          'detectRetina' => FALSE,
+	          'subdomains' => array(0, 1, 2, 3),
+	        ),
+	      ),
+      ),
+    ),
+    'another custom map' => 
+    array(
+      'label' => 'anther custom map',
+      'description' => t('Leaflet map with custom zoom settings.'),
+      'settings' => array(
+        'dragging' => TRUE,
+        'touchZoom' => TRUE,
+        'scrollWheelZoom' => TRUE,
+        'doubleClickZoom' => TRUE,
+        'zoomControl' => TRUE,
+        'attributionControl' => TRUE,
+        'trackResize' => TRUE,
+        'fadeAnimation' => TRUE,
+        'zoomAnimation' => TRUE,
+        'closePopupOnClick' => TRUE,
+        'layerControl' => FALSE,
+        'maxZoom' => 12,
+        'zoom' => 6,
+      ),
+      'layers' => array(
+	      'layer' => array(
+	        'type' => 'google',
+	        'urlTemplate' => '//mt{s}.googleapis.com/vt?x={x}&y={y}&z={z}',
+	        'options' => array(
+	          'attribution' => '',
+	          'detectRetina' => FALSE,
+	          'subdomains' => array(0, 1, 2, 3),
+	        ),
+	      ),
+      ),
+    ),
+    
+  );
+}
+
+/* 
+ * Adding some markup to the comment form 
+ */
+ 
+function openlgu_tweaks_form_comment_form_alter(&$form, &$form_state) {
+	global $base_url; 
+	$path = arg(0); 
+	if($path == "ajax_comments") :
+		$form['comment_body']['und'][0]['value']['#title'] = "Your Feedback or Comment";
+		$form['field_add_a_photo']['#weight'] = "3";
+		$form['field_comment_embed_video']['#weight'] = "4";
+		$form['message-markup'] = array(
+			'#markup' => "<div class='added-markup'><h3>Submit Your Feedback</h3><p>Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante. Donec eu libero sit amet quam egestas semper. Aenean ultricies mi vitae est. Mauris placerat eleifend leo.</p><div class='sharing-icons'><a href='http://www.facebook.com/sharer.php?u=" . $base_url . "/node/" . $form['#node']->nid . "&amp;t=" . urlencode($form['#node']->title) . "' title='Share on Facebook' class='service-links-facebook' rel='nofollow' target='_blank'><img typeof='foaf:Image' src='" . $base_url . "/sites/all/themes/openlgu_custom/images/comments-sharing-icon-facebook.png' alt='Facebook logo' /></a><a href='http://twitter.com/share?url=" . $base_url . "/node/" . $form['#node']->nid . "&amp;text=" . urlencode($form['#node']->title) . "' title='Share this on Twitter' class='service-links-twitter' rel='nofollow' target='_blank'><img typeof='foaf:Image' src='" . $base_url . "/sites/all/themes/openlgu_custom/images/comments-sharing-icon-twitter.png' alt='Twitter logo' /></a><a href='" . $base_url . "/forward?path=node/" . $form['#node']->nid . "' title='Send to a friend' class='service-links-forward' rel='nofollow' target='_blank'><img typeof='foaf:Image' src='" . $base_url . "/sites/all/themes/openlgu_custom/images/comments-sharing-icon-forward.png' alt='Forward logo' /></a></div></div>",
+			'#weight' => 0,
+		);
+		$form['flipper-markup'] = array(
+			'#markup' => "<div class='flipper-markup'><a class='add-photo active'>Add a Photo</a> | <a class='embed-video'>Embed Video</a></div>",
+			'#weight' => "2"
+		);
+	$form['actions']['submit']['#value'] = "Submit Feedback";
+	endif;
+}
+
+// Various Changes to Project Add/Edit form
+function openlgu_tweaks_form_openlgu_project_node_form_alter(&$form, &$form_state, $form_id) {
+	unset($form['field_project_status']['und']['#options']['_none']);
+	unset($form['field_physical_works']['und']['#options']['_none']);
+	unset($form['field_implementation_mode']['und']['#options']['_none']);
+	$form['field_lgu_memo']['und']['#options']['_none'] = "Not Applicable";
+	$form['field_bid_complete']['und']['#options']['_none'] = "Not Applicable";
+	$form['field_procure_complete']['und']['#options']['_none'] = "Not Applicable";
+	$form['field_physical_complete']['und']['#options']['_none'] = "Not Applicable";
+	$form['field_financial_complete']['und']['#options']['_none'] = "Not Applicable";
+	$form['actions']['submit']['#value'] = "Submit Update";
+	// Add a cancel button 
+	$form['actions']['cancel'] = array(
+      '#type'   => 'submit',
+      '#value'  => t('Cancel'),
+      '#access' => TRUE,
+      '#weight' => 15,
+      '#submit' => array('openlgu_tweaks_form_cancel', 'node_form_submit_build_node'),
+      '#limit_validation_errors' => array(),
+    );
+	$form['#validate'][] = "openlgu_tweaks_check_project_add_form";
+	// dpm($form);
+}
+
+/**
+ * Custom cancel button callback.
+ */
+function openlgu_tweaks_form_cancel($form, &$form_state) {
+  $url = $_GET['destination'] ? $_GET['destination'] : 'node/9';
+  drupal_goto($url);
+}
+
+/* Custom Validation for Project Add Form */
+
+function openlgu_tweaks_check_project_add_form($form, &$form_state) {
+	
+	// Check that Project ID is a number
+	$project_id = $form_state['values']['field_project_id']['und'][0]['value'];
+	if (!(is_numeric($project_id))) {
+		form_set_error('field_project_id', t('ProjectID must be a number.'));
+	}
+	
+	// Check that description is 200 words or less.
+	$description = $form_state['values']['body']['und'][0]['value'];
+	$num_words = str_word_count($description);
+	if ($num_words > 200) {
+		form_set_error('body',t('Project Description must be 200 words or fewer.'));
+	}
+}
+
+/* Manage AJAX Callback for narrowing down municipality on Projects form */
+function openlgu_tweaks_menu() {
+  // Ajax Callback. Returns provinces for the submitted region.
+  $items['ajax/get_provinces'] = array(
+    'title' => 'Get provinces for submitted region',
+    'page callback' => 'openlgu_tweaks_get_provinces',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+  // Ajax Callback. Returns municipalities for the submitted province.
+  $items['ajax/get_municipalities'] = array(
+    'title' => 'Get municipalities for submitted province',
+    'page callback' => 'openlgu_tweaks_get_municipalities',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+ 
+  return $items;
+}
+
+function openlgu_tweaks_get_provinces() {
+  $selected_region = $_GET['region'];
+  $sql = "SELECT prov_code, prov_name FROM {lib_provinces} where region_code = '" . $selected_region . "'";
+  $result = db_query($sql);
+  $output = "";
+  foreach($result as $row) {
+	  $output .= "<option value='" . $row->prov_code . "'>" . $row->prov_name . "</option>";
+  }
+	echo $output;
+	drupal_exit();
+}
+function openlgu_tweaks_get_municipalities() {
+  $selected_province = $_GET['province'];
+  $sql = "SELECT city_code, city_name FROM {lib_cities} where prov_code = '" . $selected_province . "'";
+  $result = db_query($sql);
+  $output = "";
+  foreach($result as $row) {
+	  $output .= "<option value='" . $row->city_code . "'>" . $row->city_name . "</option>";
+  }
+	echo $output;
+	drupal_exit();
+}
+
+
+
+

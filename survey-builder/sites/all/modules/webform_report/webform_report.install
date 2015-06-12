@@ -1,0 +1,75 @@
+<?php
+
+/**
+ * @file
+ * This file contains the functions required to install
+ * the Webform Report module
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function webform_report_install() {
+}
+
+function webform_report_schema() {
+
+  $schema['webform_report'] = array(
+    'fields' => array(
+      'nid' => array(
+        'type' => 'int', 
+      	'unsigned' => TRUE, 
+      	'not null' => TRUE, 
+      	'default' => 0
+      ),
+      'wnid' => array(
+      	'type' => 'int', 
+      	'unsigned' => TRUE, 
+      	'not null' => TRUE, 
+      	'default' => 0
+      ),
+      'description' => array(
+      	'type' => 'text', 
+      	'not null' => TRUE
+      ),
+      'columns' => array(
+      	'type' => 'text', 
+      	'not null' => TRUE
+      ),
+      'filters' => array(
+      	'type' => 'text', 
+      	'not null' => TRUE
+      ),
+      'sorton' => array(
+      	'type' => 'text', 
+      	'not null' => TRUE
+      ),
+      'options' => array(
+      	'type' => 'text', 
+      	'not null' => TRUE
+      ),
+    ),
+    'primary key' => array('nid')
+  );
+  
+  return $schema;
+}
+
+/**
+ * Implementation of hook_uninstall
+ */
+function webform_report_uninstall() {
+
+  variable_del("webform_report");
+
+  // delete all webform reports
+  $result = db_select('node', 'n')
+              ->fields('n', array('nid'))
+              ->condition('type', 'webform_report')
+              ->execute()
+              ->fetchCol();
+  foreach ($result as $row) {
+    node_delete($row);
+  }
+}
+

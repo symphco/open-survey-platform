@@ -1,0 +1,46 @@
+name = Views Chart Tools
+description = Provides plugins for renderig views data as charts with Google Chart Tools.
+core = 7.x
+package = Views
+dependencies[] = views
+dependencies[] = google_charts
+
+; Views Chart handlers
+files[] = handlers/views_chart_tools_handler_element.inc
+files[] = handlers/views_chart_tools_handler_chart.inc
+files[] = handlers/views_chart_tools_handler_chart_image.inc
+files[] = handlers/views_chart_tools_handler_chart_annotated_timeline.inc
+files[] = handlers/views_chart_tools_handler_chart_area.inc
+files[] = handlers/views_chart_tools_handler_chart_area_image.inc
+files[] = handlers/views_chart_tools_handler_chart_bar.inc
+files[] = handlers/views_chart_tools_handler_chart_bar_image.inc
+files[] = handlers/views_chart_tools_handler_chart_bubble.inc
+files[] = handlers/views_chart_tools_handler_chart_column.inc
+files[] = handlers/views_chart_tools_handler_chart_combo.inc
+files[] = handlers/views_chart_tools_handler_chart_line.inc
+files[] = handlers/views_chart_tools_handler_chart_line_image.inc
+files[] = handlers/views_chart_tools_handler_chart_org.inc
+files[] = handlers/views_chart_tools_handler_chart_pie.inc
+files[] = handlers/views_chart_tools_handler_chart_pie_image.inc
+files[] = handlers/views_chart_tools_handler_chart_scatter.inc
+files[] = handlers/views_chart_tools_handler_chart_stepped_area.inc
+files[] = handlers/views_chart_tools_handler_chart_table.inc
+files[] = handlers/views_chart_tools_handler_map.inc
+
+; Views Control handlers
+files[] = handlers/views_chart_tools_handler_control.inc
+files[] = handlers/views_chart_tools_handler_control_category_filter.inc
+files[] = handlers/views_chart_tools_handler_control_number_range_filter.inc
+files[] = handlers/views_chart_tools_handler_control_string_filter.inc
+files[] = handlers/views_chart_tools_handler_control_chart_range_filter.inc
+
+; Views plugins
+files[] = plugins/views_chart_tools_plugin_display_dashboard.inc
+files[] = plugins/views_chart_tools_plugin_style_dashboard.inc
+
+; Information added by drupal.org packaging script on 2013-10-19
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "views_chart_tools"
+datestamp = "1382152484"
+

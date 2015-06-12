@@ -1,0 +1,18 @@
+name = Webform Service
+description = Provides services for the Webform module
+package = Services
+dependencies[] = services
+dependencies[] = webform
+dependencies[] = ctools
+dependencies[] = uuid
+dependencies[] = webform_submission_uuid
+
+files[] = tests/ServicesResourceWebformTests.test
+core = 7.x
+
+; Information added by drupal.org packaging script on 2012-10-09
+version = "7.x-4.0-beta1"
+core = "7.x"
+project = "webform_service"
+datestamp = "1349816512"
+

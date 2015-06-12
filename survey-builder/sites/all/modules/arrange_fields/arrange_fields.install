@@ -1,0 +1,40 @@
+<?php
+
+
+/**
+ * Implementation of hook_install.  All we really need from this is to make sure
+ * that the module's weight is higher than other's, or else all kinds of problems
+ * will happen when we go to do hook_form_alter.
+ *
+ */
+function arrange_fields_install() {
+  db_query("UPDATE {system} SET weight = 500 WHERE name = 'arrange_fields'");
+}
+ 
+
+/**
+ * Implementation of hook_enable.  Since clearing the cache seems to correct
+ * so many bugs with this module, I am going to do it on enable.  This hopefully
+ * will cut down on the initial bugs some users experience.
+ *
+ */
+function arrange_fields_enable() {
+drupal_set_message("Arrange Fields: Cache cleared during installation.");
+  cache_clear_all();
+  drupal_set_message(t("If you are installing Arrange Fields for the first time,
+                        you may need to clear your site's cache again to ensure
+                        that the menu system is updated.  Please visit this
+                        page and click 'Clear all caches' at the top
+                        of the screen: ") . l("admin/config/development/performance", "admin/config/development/performance"));
+  
+}
+
+/**
+ * The main thing we want to do here is up the weight to a higher number.  Before
+ * now, the weight was set to 50.  But, in order for this module to work with vertical
+ * tabs (whose weight is 300), the weight needs to be higher.
+ *
+ */
+function arrange_fields_update_6100() {
+  db_query("UPDATE {system} SET weight = 500 WHERE name = 'arrange_fields'");
+}

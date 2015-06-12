@@ -1,0 +1,3 @@
+name = OpenLGU Tweaks Module
+description = Reduces Zoom Level in the Leaflet Map we are using.
+core = 7.x

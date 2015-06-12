@@ -1,0 +1,402 @@
+<?php
+
+/**
+ * @file
+ * The Webform MySQL Views module allows you to automatically build flattened
+ * MySQL views of submitted Webform module data, for convenient use by external
+ * applications.
+ *
+ * @author Andy Chase <andychase@gmail.com>
+ * @author Joe Corall <joe.corall@gmail.com>
+ */
+
+/**
+ * Implementation of hook_menu().
+ */
+function webform_mysql_views_menu() {
+  $items = array();
+
+  // Submissions listing.
+  $items['admin/content/webform/webform'] = array(
+    'title' => 'Webforms',
+    'page callback' => 'webform_admin_content',
+    'access callback' => 'user_access',
+    'access arguments' => array('access all webform results'),
+    'description' => 'View and edit all the available webforms on your site.',
+    'file' => 'includes/webform.admin.inc',
+    'file path' => drupal_get_path('module', 'webform'),
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => 0,
+  );
+
+  // MySQL Views settings
+  $items['admin/content/webform/mysql'] = array(
+    'title' => 'MySQL Views',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('webform_mysql_views_admin_form'),
+    'access callback' => 'user_access',
+    'access arguments' => array('access all webform results'),
+    'description' => 'Create MySQL views of submitted Webform data.',
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 2,
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function webform_mysql_views_form_alter(&$form, &$form_state, $form_id) {
+  switch ($form_id) {
+    case 'webform_components_form':
+    case 'webform_component_edit_form':
+    case 'webform_component_delete_form':
+      $form['#submit'][] = 'webform_mysql_views_component_submit';
+  }
+}
+
+/**
+ * Submit handler for the webform component edit/delete forms.
+ */
+function webform_mysql_views_component_submit($form, $form_state) {
+  //If this node has a MySQL view, update it.
+  switch ($form_state['values']['form_id']) {
+    case 'webform_components_form':
+    case 'webform_component_edit_form':
+      $nid = $form_state['values']['nid'];
+      break;
+    case 'webform_component_delete_form':
+      $nid = $form_state['values']['node']->nid;
+      break;
+  }
+  webform_mysql_views_rebuild($nid);
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function webform_mysql_views_node_delete($node) {
+  // drop the node's MySQL View, if it exists
+  webform_mysql_views_drop($node->nid);
+}
+
+/**
+ * Rebuild the view for the specified nid, if any. If $add_new is TRUE, will
+ * build a new view even if an existing one is not found.
+ *
+ * @param $nid
+ *   The node ID of the webform whose view should be rebuilt.
+ *
+ * @param boolean $add_new
+ *   Indicates whether or not view should be added if it does not already exist.
+ */
+function webform_mysql_views_rebuild($nid, $add_new = FALSE) {
+
+  global $db_prefix;
+
+  $views = variable_get('webform_mysql_views_views', array());
+  $name = NULL;
+
+  if (empty($views[$nid]) && $add_new) {
+    //Get a name for the new view
+    $node = node_load($nid);
+    $name = webform_mysql_views_get_view_name($node->title, $nid);
+    $views[$nid] = $db_prefix . $name;
+    variable_set('webform_mysql_views_views', $views);
+  }
+
+  if (array_key_exists($nid,$views)) {
+    // Remove the $db_prefix from the view name so we don't wind up with double
+    // db_prefixes:
+    if ($db_prefix) {
+      $name = substr($views[$nid], strlen($db_prefix));
+    }
+    else {
+      $name = $views[$nid];
+    }
+    $query = webform_mysql_views_build_query($nid, $name);
+
+    db_query($query);
+  }
+
+  //If $add_new was TRUE, return the name of the newly created view.
+  if ($name) {
+    return $db_prefix . $name;
+  }
+}
+
+/**
+ * Drops the view belonging to the specified nid, if any
+ *
+ * @param $nid
+ *   The node ID of the webform whose view should be dropped.
+ */
+function webform_mysql_views_drop($nid) {
+  $views = variable_get('webform_mysql_views_views', array());
+  if (!empty($views[$nid])) {
+    $query = "DROP VIEW {" . $views[$nid] . "}";
+    db_query($query);
+    unset($views[$nid]);
+    variable_set('webform_mysql_views_views', $views);
+  }
+}
+
+/**
+ * Implementation of hook_help().
+ */
+function webform_mysql_views_help($path) {
+  switch ($path) {
+    case 'admin/help#webform_mysql_views':
+      return '<p>'. t("This module builds flattened, read-only MySQL views of webform submission data. These views may be useful when you need to  access this data from an external application in an automated fashion without exporting, importing, or the use of a web-based API.") .'</p><p>'
+      . t("To manage MySQL views for your webforms, log in as an administrator and go to the <code>Administer &gt; Content Management &gt; Web Forms</code> page and click on the <code>MySQL Views</code> tab.") .'</p><p>'
+      . t("<h3 id=\"requirements\">Requirements</h3><ul><li>Your Drupal database must be using the MySQL backend.</li><li>Your MySQL server must be version 5.0 or later</li><li>The MySQL user specified in your Drupal <code>settings.php</code> file must have permission to create views.</li><li>Webform Module</li><li>Elements Module</li></ul>");
+    case 'admin/content/webform/mysql':
+      return '<p>'. t("This page lets you add or remove MySQL views containing submission data for your Webforms.") .'</p>'
+.'<p>'. t("To add a MySQL view for a Webform, check the box next to its name and submit the form") .'</p>'
+.'<p>'. t("To remove a MySQL view for a Webform, uncheck the box next to its name and submit the form.") .'</p>'
+.'<p>'. t("Note: <a href=\"http://dev.mysql.com/tech-resources/articles/mysql-views.html\">MySQL Views</a> should not be confused with the <a href=\"http://drupal.org/project/views\"> Drupal Views module</a>.") .'</p>';
+  }
+}
+
+/**
+ * Form builder for the Webform MySQL Views admin form.
+ *
+ * Implemented as its own admin page instead of integrating with the node
+ * form because of chicken-and-egg logic hassles.
+ *
+ * @see webform_mysql_views_admin_form_submit()
+ * @ingroup forms
+ */
+function webform_mysql_views_admin_form() {
+
+  $meets_reqs = _webform_mysql_views_check_requirements();
+  if ($meets_reqs !== TRUE) {
+    $output = '<strong>'. t("This module will not work on this site.") .'</strong>';
+    $output .= theme('item_list', array('items' => $meets_reqs), t('Details'));
+    return array("error" => array('#markup' => $output));
+  }
+
+  // Get list of webform-enabled content types
+  $types = webform_variable_get('webform_node_types',array());
+
+  //Get list of nids that already have views
+  $views = variable_get('webform_mysql_views_views', array());
+  $view_nids = array_keys($views);
+
+  //Get list of all webform nodes
+  $result = db_select('node','n')
+    ->fields('n',array('nid','title'))
+    ->condition('type',$types,'IN')
+    ->condition('status',1,'=')
+    ->orderBy('nid')
+    ->execute();
+
+  $options = array();
+  $titles = array();
+  $default_value = array();
+  foreach ($result as $node) {
+    $titles[$node->nid] = $node->title;
+    if (in_array($node->nid, $view_nids)) {
+      $default_value[$node->nid] = $node->nid;
+    }
+    if (in_array($node->nid, $view_nids)) {
+      $view_str = $views[$node->nid];
+    }
+    else {
+      $view_str = t('-');
+    }
+    $options[$node->nid] = array('nid' => $node->nid, 'title' => $node->title, 'view' => $view_str);
+  }
+
+  $form = array();
+  //Pass the titles along
+  $form['titles'] = array(
+    '#type' => 'value',
+    '#value' => $titles,
+  );
+  $header = array(
+    'title' => t('Webform Name'),
+    'view' => t('View Name'),
+  );
+  $form['help'] = array(
+    '#value' => t("Select the webform(s) you would like to generate MySQL views for. To drop a webform's MySQL view, uncheck its box and click 'Submit'.")
+  );
+
+  $form['nodes'] = array(
+    '#type' => 'tableselect',
+    '#header' => $header,
+    '#options' => $options,
+    '#default_value' => $default_value,
+    '#empty' => t('There are no webforms defined in the system.'),
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+
+  return $form;
+
+}
+
+/**
+ * Form submission handler for the admin form.
+ *
+ * @see webform_mysql_views_admin_form()
+ */
+function webform_mysql_views_admin_form_submit($form, &$form_state) {
+  global $databases;
+  $db_prefix = $databases['default']['default']['prefix'];
+
+  //Load existing view info
+  $webform_views = $previous_webform_views = variable_get('webform_mysql_views_views', array());
+  $webform_view_nids = array_keys($webform_views);
+
+  //Parse submitted settings;
+  $submitted_nids = array();
+  foreach ($form_state['values']['nodes'] as $key => $val) {
+    if ($key == $val) {
+      $submitted_nids[] = $key;
+    }
+  }
+
+  //If there are any nids in the saved array not in the newly submitted one, drop those views.
+  $drop_nids = array_diff($webform_view_nids, $submitted_nids);
+  foreach ($drop_nids as $nid) {
+    // (Drop the prefix from the stored view name and let the DB API handle it)
+    $query = "DROP VIEW {" . substr($webform_views[$nid], strlen($db_prefix)) . "}";
+    db_query($query);
+    unset($webform_views[$nid]);
+  }
+  if (count($drop_nids)) {
+    drupal_set_message(
+      format_plural(count($drop_nids), t('Dropped 1 view.'), t('Dropped @count views.'),
+      array('@count' => count($drop_nids))));
+  }
+
+  //If there are any nids in the new array not in the saved one, create new views
+  $new_nids = array_diff($submitted_nids, $webform_view_nids);
+
+  foreach ($new_nids as $nid) {
+    $webform_views[$nid] = webform_mysql_views_rebuild($nid, TRUE);;
+  }
+
+  if (count($new_nids)) {
+    drupal_set_message(
+      format_plural(count($new_nids),
+      t('Created 1 view.'),
+      t('Created @count views.'),
+      array('@count' => count($drop_nids)))
+    );
+  }
+
+  //Save the webform_views variable
+  variable_set('webform_mysql_views_views', $webform_views);
+}
+
+/**
+ * Given a webform node ID, build an SQL query that will create a flat MySQL view
+ * of subnissions for that webform
+ *
+ * @param $nid
+ *   The node ID of the webform this view is being built for.
+ *
+ * @param $view_name
+ *   The name to use for this view in the MySQL database.
+ */
+function webform_mysql_views_build_query($nid, $view_name) {
+
+  // Build query with individual rows instead of GROUP_CONCAT, because
+  // the MySQL server group_concat_max_length setting is usually limited to
+  // 1024 characters, and it's easier to work around that here than tinkering
+  // with the my.cnf file.
+  $result = db_select('webform_component','c')
+    ->fields('c',array('cid','form_key','type'))
+    ->condition('nid',$nid,'=')
+    ->condition('type','fieldset','!=')
+    ->orderBy('weight')
+    ->orderBy('cid')
+    ->execute();
+
+  $components = '';
+
+  foreach ($result as $row) {
+    switch ($row->type) {
+      //Collapse grid values in a string of key=val pairs
+      case 'grid':
+        $component = sprintf("(SELECT GROUP_CONCAT(no,'=',data) FROM {webform_submitted_data} AS child WHERE child.sid = parent.sid AND cid = %d) AS `%s`, ", $row->cid, $row->form_key);
+        break;
+      //Otherwise collapse multi-value fields into simple comma-separated lists
+      default:
+        $component = sprintf("(SELECT GROUP_CONCAT(data) FROM {webform_submitted_data} AS child WHERE child.sid = parent.sid AND cid = %d) AS `%s`, ", $row->cid, $row->form_key);
+    }
+    $components .= $component;
+  }
+
+  $query = "CREATE OR REPLACE VIEW {".$view_name."} AS SELECT parent.sid, s.uid,"
+           . $components
+           ." FROM_UNIXTIME(s.submitted) AS submitted, s.remote_addr FROM {webform_submitted_data} AS parent JOIN {webform_submissions} s ON s.sid = parent.sid WHERE parent.nid = "
+           . $nid
+           ." GROUP BY parent.sid ORDER BY parent.sid DESC";
+
+  return $query;
+}
+
+/**
+ * Get a unique view name from a given string and node ID.
+ *
+ * @param $title
+ *   The string from which to build the view name.
+ *
+ * @param $nid
+ *   The node ID from which to build the view name.
+ */
+function webform_mysql_views_get_view_name($title, $nid) {
+
+  global $db_url, $db_prefix;
+
+  //Discard non-alphanumeric chars
+  $title = strtolower(str_replace(' ', '_', $title));
+  $title = 'webform_views_'. preg_replace('/[^a-z0-9_]/', '', $title);
+
+  $db_name = substr(parse_url($db_url, PHP_URL_PATH), 1);
+
+  // Check whether the default view name is already being used
+  // (For example duplicate node titles). Append $nid if necessary to ensure
+  // uniqueness.  Table names not escaped as they are not a part of the Drupal DB.
+  $query = "SELECT COUNT(table_name) AS view_exists FROM information_schema.views where table_schema = '"
+           . $db_name
+           . "' AND table_name = '"
+           . $db_prefix
+           . $title
+           ."'";
+
+  $view_exists = db_query($query);
+
+  if (isset($view_exists)) {
+    return $title .'_'. $nid;
+  }
+
+  return $title;
+}
+
+/**
+ * Check Drupal environment for module requirements
+ */
+function _webform_mysql_views_check_requirements() {
+  $meets_reqs = variable_set('webform_mysql_views_meets_reqs', FALSE);
+
+  if ($meets_reqs) {
+    return TRUE;
+  }
+  else {
+    $driver = db_driver();
+    if ($driver !== 'mysql') {
+      return array(t("This module is only compatible with the MySQL backend."));
+    }
+    else {
+      variable_set('webform_mysql_views_meets_reqs', TRUE);
+      return TRUE;
+    }
+  }
+}

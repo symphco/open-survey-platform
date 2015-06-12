@@ -1,0 +1,518 @@
+<?php
+
+/**
+ * @file
+ * webform_chart.module
+ *
+ * This module provides webform results rendered graphically using various
+ * backends to render charts. This is designed to be extensible so various
+ * chart rendering backends can be included with other modules.
+ */
+
+// Load various required files.
+module_load_include('inc', 'webform_chart', 'webform_chart.admin');
+module_load_include('inc', 'webform_chart', 'webform_chart.charting');
+$bundlers = file_scan_directory(drupal_get_path('module', 'webform_chart') . '/bundlers', '/.*\.inc$/');
+foreach ($bundlers as $bundler) {
+  include_once 'bundlers/' . $bundler->filename;
+}
+
+/*
+ * -------------------------------------------------------------------------
+ * HOOKS IMPLEMENTATIONS
+ * -------------------------------------------------------------------------
+ */
+
+/**
+ * Implements hook_help().
+ *
+ * Displays help and module information.
+ */
+function webform_chart_help($section, $arg) {
+  switch ($section) {
+    case "admin/help#webform_chart":
+      return '<p>' . t("Provides graphical rendering of Webform results as charts") . '</p>';
+  }
+}
+
+/**
+ * Implements hook_permission().
+ *
+ * Two permissions available:
+ *    - Configure Webform Charts :  allow given roles to configure the charting
+ *                                  and backend
+ *                                  to use on webform settings pages.
+ *    - View Webform Charts :       allow given roles to access the chart
+ *                                  results page.
+ */
+function webform_chart_permission() {
+  return array(
+    'configure_webform_charts' => array(
+      'title' => t('Configure Webform Charts'),
+      'description' => t('Allows users to configure back ends for webform charts.'),
+    ),
+    'view_webform_charts' => array(
+      'title' => t('View Webform Charts'),
+      'description' => t('Allows users to visit the chart display result page.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Add setting to webform configure: the webform settings page.
+ * This function add settings to choose which backend this particular webform
+ * will use.
+ */
+function webform_chart_form_webform_configure_form_alter(&$form, &$form_state) {
+
+  // Check if user has admin permission on Webform Charts.
+  if (user_access('configure_webform_charts')) {
+
+    // Add configuration to the setting form.
+    // This helper method is defined in the webform_chart.admin.inc file.
+    _webform_chart_form_configure($form, $form_state);
+
+    // Add a new validate callback function (used to validate charting config).
+    $form['#validate'][] = '_webform_chart_form_configure_validate';
+    // Add a new submit callback function, used to save charting config.
+    $form['#submit'][] = '_webform_chart_form_configure_save';
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Add setting to webform all components: configure charting.
+ */
+function webform_chart_form_webform_component_edit_form_alter(&$form, $form_state) {
+
+  // Check if charting is applicable.
+  if (!_webform_chart_is_applicable($form['type']['#value'])) {
+    return;
+  }
+
+  // Retrieve the existing value for the webform charting components.
+  $charting = array('webform_chart_backend' => NULL);
+  $args = $form_state['build_info']['args'][1];
+  if (isset($args['charting'])) {
+    $charting = unserialize($args['charting']);
+  }
+  // Check if user has admin permission on Webform Charts.
+  if (user_access('configure_webform_charts')) {
+
+    // Retrieve the backend to use.
+    $nid = $form['nid']['#value'];
+    $charting_config = unserialize(_webform_chart_retrieve_charting_config($nid));
+    $backend = $charting_config['backend'];
+
+    if ($charting_config['config_method'] == 1) {
+      $fn = $backend . '_wfc_backend_configure';
+      $form['charting'] = array(
+        '#type'         => 'fieldset',
+        '#title'        => t('Charting Configuration'),
+        '#description'  => t('Configure the options for your charting backend.'),
+        '#collapsible'  => TRUE,
+        '#collapsed'    => FALSE,
+      );
+      if ($backend) {
+        $form['charting']['activate'] = array(
+          '#type'           => 'checkbox',
+          '#title'          => t('Render this component as a chart.'),
+          '#default_value'  => isset($charting['activate']) ? $charting['activate'] : FALSE,
+          '#ajax'           => array(
+            'callback'          => 'webform_chart_form_webform_component_ajax_callback',
+            'wrapper'           => 'webform_chart_form_webform_component_ajax_wrapper',
+          ),
+        );
+        if (function_exists($fn)) {
+          $form['charting']['config'] = array(
+            '#type'   => 'container',
+            '#prefix' => '<div id="webform_chart_form_webform_component_ajax_wrapper">',
+            '#suffix' => '</div>',
+          );
+          if ((isset($charting['activate']) && $charting['activate']) || ((isset($form_state['values']['charting']['activate'])) && $form_state['values']['charting']['activate'])) {
+            $backend_config = $fn($charting['config']);
+            $form['charting']['config'] = array_merge($form['charting']['config'], $backend_config);
+          }
+        }
+        else {
+          $form['charting']['markup'] = array(
+            '#markup' => '<b><em>' . t('Charts has been disabled for this webform.') . '</em></b>',
+          );
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_webform_component_presave().
+ *
+ * Validate webform chart settings before saving.
+ */
+function webform_chart_webform_component_presave(&$component) {
+
+  if (!_webform_chart_is_applicable($component['type'])) {
+    return;
+  }
+  $charting_config = unserialize(_webform_chart_retrieve_charting_config($component['nid']));
+
+  // Only if "per component" charting.
+  if ($charting_config['config_method'] == 1) {
+
+    // Retrieve the backend to use.
+    $backend = $charting_config['backend'];
+
+    // Call the backend charting validate function.
+    $fn = $backend . '_wfc_component_validate';
+
+    if (function_exists($fn) && $component['charting']['activate'] == 1) {
+      // Add config to component values to ensure symetry on the
+      // component_validation hook for both component and form configuration.
+      $component['values'] = $component['charting']['config'];
+      $fn($component);
+      $component['charting']['config'] = $fn($component);
+    }
+    elseif (!is_array($component['charting'])) {
+      $component['charting'] = unserialize($component['charting']);
+    }
+  }
+}
+
+/**
+ * Implements hook_webform_component_insert().
+ *
+ * Save webform chart settings.
+ */
+function webform_chart_webform_component_insert($component) {
+  webform_chart_webform_component_update($component);
+}
+
+/**
+ * Implements hook_webform_component_update().
+ *
+ * Update webform chart settings.
+ */
+function webform_chart_webform_component_update($component) {
+
+  if (!_webform_chart_is_applicable($component['type'])) {
+    return;
+  }
+
+  if (isset($component['charting'])) {
+    db_merge('webform_component')
+      ->key(array('nid' => $component['nid'], 'cid' => $component['cid']))
+      ->fields(array(
+        'charting' => serialize($component['charting']),
+      ))
+      ->execute();
+  }
+}
+
+/**
+ * Implements hook_menu().
+ *
+ * Adds the charting result page on each Webform node.
+ */
+function webform_chart_menu() {
+  $items['node/%webform_menu/chart-results'] = array(
+    'title' => 'Results as charts',
+    'page callback' => 'webform_chart_page',
+    'page arguments' => array(1),
+    'access arguments' => array('view_webform_charts'),
+    'weight' => 7,
+    'type' => MENU_LOCAL_TASK,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function webform_chart_theme() {
+  $theme = array(
+    // Theme the result page.
+    'webform_chart_page' => array(
+      'variables' => array(
+        'node' => NULL,
+        'data' => NULL,
+        'sids' => array(),
+        'component' => NULL,
+      ),
+      'template' => 'templates/webform-chart-page',
+    ),
+    'webform_chart_items' => array(
+      'variables' => array(
+        'raw_items' => NULL,
+        'configs' => NULL,
+      ),
+      'template' => 'templates/webform-chart-items',
+    ),
+    'webform_chart_item' => array(
+      'variables' => array(
+        'raw_item' => NULL,
+        'configs' => NULL,
+      ),
+      'template' => 'templates/webform-chart-item',
+    ),
+
+    // Theme the help on setting page.
+    'webform_chart_form_help' => array(
+      'file' => 'webform_chart.admin.inc',
+      'variables' => array(),
+    ),
+  );
+  return $theme;
+}
+
+/**
+ * Implements hook_init().
+ *
+ * This is a trick to be able to use AJAX in webform component edit page.
+ * The trick has been found here:
+ * https://drupal.org/node/1091354#comment-5323294
+ * If someone find better, please fill free to help
+ */
+function webform_chart_init() {
+  // Hack to fix webforms.
+  if ($_GET['q'] == 'system/ajax' && isset($_POST['form_id'])) {
+    foreach (webform_components() as $component_type => $component_info) {
+      webform_component_include($component_type);
+    }
+  }
+}
+
+/*
+ * -----------------------------------------------------------------------
+ * TEMPLATE PREPROCESS IMPLEMENTATIONS
+ * -----------------------------------------------------------------------
+ */
+
+/**
+ * Template pre-process function.
+ *
+ * Preprocess the chart page to build all raw data necessary for rendering
+ * using the template file:  webform-chart-page.tpl.php.
+ */
+function template_preprocess_webform_chart_page(&$variables) {
+
+  // Add the css.
+  drupal_add_css(drupal_get_path('module', 'webform_chart') . '/css/webform-chart.css');
+
+  // Get back the backend to use for rendering.
+  $webform = $variables['node']->webform;
+  $configs = isset($webform['charting']) ? unserialize($webform['charting']) : NULL;
+
+  // If charting is not defined: it's useless to continue.
+  if ($configs == NULL || $configs['backend'] == 'none') {
+    // Render the results if the charting backend exists.
+    drupal_set_message(t('Charts has been disabled for this webform.'), 'warning');
+    return;
+  }
+
+  // The component data, contains component_data and row_data.
+  $data = $variables['data'];
+
+  // Add a warning if there is no elements in the webform.
+  if (count($data) == 0) {
+    drupal_set_message(t('There are no elements in this webform.'), 'warning');
+    return;
+  }
+
+  // Create page title.
+  $variables['page_title'] = t('Chart results');
+
+  // Render items.
+  $variables['charting'] = theme('webform_chart_items', array('raw_items' => $data, 'configs' => $configs));
+
+}
+
+/**
+ * Template pre-process function.
+ *
+ * Preprocess the chart items list to build all raw data necessary for
+ * rendering using the template file:  webform-chart-items.tpl.php.
+ */
+function template_preprocess_webform_chart_items(&$variables) {
+  $items = array();
+  $configs = $variables['configs'];
+
+  // Backend can be null when components are improperly setted.
+  // Example: when the module has just been activated but not yet configured.
+  if ($configs['backend']) {
+    // Build all rendered items (using template_preprocess_*...*_item).
+    foreach ($variables['raw_items'] as $item) {
+      // If charting data exist, get the config.
+      if ($item['component_data']['charting']) {
+        $config = unserialize($item['component_data']['charting']);
+      }
+      // Do not render an item that does not need charting.
+      if ($configs['config_method'] == 1 && (!$item['component_data']['charting'] || $config == NULL || !array_key_exists('activate', $config) || !$config['activate'])) {
+        continue;
+      }
+      // Do not render unsupported elements.
+      if (!_webform_chart_is_applicable($item['component_data']['type'])) {
+        continue;
+      }
+      $items[] = theme('webform_chart_item', array('raw_item' => $item, 'configs' => $variables['configs']));
+    }
+  }
+  // If configuration is not correct or if no items have been individually
+  // setted: display a status info.
+  if (!$configs['backend'] || ($configs['config_method'] == 1 && count($items) == 0)) {
+    drupal_set_message(t('None of the components are activated for chart rendering.'), 'status');
+  }
+
+  // Return the rendered items.
+  $variables['items'] = $items;
+  return $items;
+}
+
+/**
+ * Template pre-process function.
+ *
+ * Preprocess a chart item to build all raw data necessary for rendering using
+ * the template file:  webform-chart-item.tpl.php.
+ */
+function template_preprocess_webform_chart_item(&$variables) {
+
+  $data = $variables['raw_item'];
+  $configs = $variables['configs'];
+  $cid  = $variables['id'];
+  $number_responses = 0;
+  $row_data = $data['row_data'];
+  $component_data = $data['component_data'];
+  $config = array();
+
+  // Build some (maybe!) usefull variables for templating.
+  $variables['base_path'] = base_path();
+  // Populate the page template suggestions.
+  $suggestions = theme_get_suggestions(arg(), 'webform_chart_item');
+  if ($suggestions) {
+    $variables['theme_hook_suggestions'] = $suggestions;
+  }
+
+  // NOTE: just in case some elements don't have row_data but it should not.
+  if (is_array($row_data)) {
+
+    // Retrieve the component name, generally the question
+    // this will be used as the chart title.
+    $name = $component_data['name'];
+
+    // Retrieve the description (if applicable).
+    $description = isset($component_data['extra']['description']) ? $component_data['extra']['description'] : '';
+
+    if ($configs['config_method'] == 0) {
+      $config = $configs;
+    }
+    else {
+      // Retrieve the component charting configuration.
+      $config = unserialize($component_data['charting']);
+    }
+
+    // Add the chart to the chart list.
+    $item = array(
+      '#chart_id'       => "chart_" . $cid,
+      '#title'          => $name,
+      '#description'    => $description,
+      '#component'      => $component_data,
+      '#config'         => $config,
+    );
+
+    // Each grid question is render as an item : thus change the $data format.
+    $datas = isset($row_data['table_rows']) ? $row_data['table_rows'] : $row_data;
+
+    // Assign #data and #labels to the chart.
+    foreach ($datas as $value) {
+      // @todo Fix this, this is dumb.
+      // Perhaps add the count of responses to the query ?
+      //if ($value[0] == 'Average submission length in words (ex blanks)') {
+        $number_responses += $value[1];
+      //}
+      $item['#data'][] = intval($value[1]);
+      $item['#labels'][] = $value[0];
+    }
+    $item['#total_responses'] = $number_responses;
+  }
+
+  // Return the rendered item.
+  $variables['item'] = $item;
+  if ($number_responses == 0) {
+    $variables['rendered_item'] = '<div><b><em>' . t('There are no results for this component.') . '</em></b></div>';
+    return $variables['rendered_item'];
+  }
+
+  // Call the backend item render using hook:
+  // #backendname#_wfc_component_render($item).
+  $fn = $configs['backend'] . '_wfc_component_render';
+  if (function_exists($fn)) {
+    $variables['rendered_item'] = $fn($item);
+  }
+  else {
+    drupal_set_message(t('The selected rendering backend has no rendering function: %fn', array('%fn' => $fn)), 'error');
+    return;
+  }
+  return $variables['rendered_item'];
+}
+
+
+/*
+ * ----------------------------------------------------------------------
+ * HELPER FUNCTIONS
+ * ----------------------------------------------------------------------
+ */
+
+/**
+ * Retrieves the backend bundler module name used for chart rendering.
+ *
+ * @param Integer $nid
+ *   The webform nid.
+ */
+function _webform_chart_retrieve_charting_config($nid) {
+
+  // Retrieve the backend to use.
+  $result = db_select('webform', 'wf')
+            ->fields('wf', array('charting'))
+            ->condition('nid', $nid)
+            ->execute()
+            ->fetchAssoc();
+
+  return $result['charting'];
+}
+
+/**
+ * Check if charting is applicable for the input component type.
+ *
+ * @input $type the component type
+ *
+ * @return bool
+ *   TRUE/FALSE: If the charting is application for this component type.
+ */
+function _webform_chart_is_applicable($type) {
+  if ($type == 'fieldset') {
+    return FALSE;
+  }
+  elseif ($type == 'pagebreak') {
+    return FALSE;
+  }
+  elseif ($type == 'markup') {
+    return FALSE;
+  }
+  elseif ($type == 'draggable_list') {
+    return FALSE;
+  }
+  else {
+    return TRUE;
+  }
+}
+
+/**
+ * Ajax callback implementation.
+ *
+ * Used in each component edit form to render the backend config.
+ */
+function webform_chart_form_webform_component_ajax_callback($form, $form_state) {
+  return $form['charting']['config'];
+}

@@ -1,0 +1,12 @@
+name = Webform Component Roles
+description = Define which roles can use webform components per webform.
+package = Webform
+core = 7.x
+dependencies[] = webform
+
+; Information added by drupal.org packaging script on 2013-09-26
+version = "7.x-1.4"
+core = "7.x"
+project = "webform_component_roles"
+datestamp = "1380238186"
+

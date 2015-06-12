@@ -1,0 +1,319 @@
+<?php
+
+/**
+ * @file
+ * Primary functions and hook implementations for Google Charts.
+ */
+
+/**
+ * Returns a new dashboard object.
+ *
+ * @param string $container_id
+ *   The HTML ID of the container in which the dashboard is to be rendered.
+ */
+function google_charts_dashboard($container_id) {
+  return new GoogleChartsDashboard($container_id);
+}
+
+/**
+ * Returns a new chart wrapper object.
+ *
+ * @param array $options
+ *   An optional associative array of options.
+ */
+function google_charts_chart_wrapper(array $options = array()) {
+  return new GoogleChartsChartWrapper($options);
+}
+
+/**
+ * Returns a new control wrapper object.
+ *
+ * @param array $options
+ *   An optional asssociative array of options.
+ */
+function google_charts_control_wrapper(array $options = array()) {
+  return new GoogleChartsControlWrapper($options);
+}
+
+/**
+ * Implements hook_theme().
+ */
+function google_charts_theme() {
+  return array(
+    'google_chart' => array(
+      'variables' => array('type' => NULL, 'name' => NULL, 'columns' => array(), 'rows' => array(), 'options' => array()),
+    ),
+    'google_chart_wrapper' => array(
+      'variables' => array('chart_wrapper' => NULL, 'data' => NULL),
+    ),
+    'google_dashboard' => array(
+      'variables' => array('dashboard' => NULL, 'controls' => array(), 'charts' => array(), 'data' => NULL),
+    ),
+  );
+}
+
+/**
+ * Theme callback for drawing a chart.
+ */
+function theme_google_chart($variables) {
+  static $count = 1;
+
+  // Ensure we were passed a chart type.
+  if (!isset($variables['type'])) {
+    return;
+  }
+
+  // Create the data table.
+  $data = new GoogleChartsDataTable();
+
+  // Add columns to the table (if provided).
+  foreach ($variables['columns'] as $column) {
+    $column += array(
+      'type' => GoogleChartsDataColumn::NUMBER,
+      'label' => '',
+      'name' => '',
+      'role' => GoogleChartsDataColumn::ANNOTATION,
+    );
+    $data->addColumn($column['type'], $column['label'], $column['name'], $column['role']);
+  }
+
+  // Add rows to the data table.
+  $data->addRows($variables['rows']);
+
+  // Create a unique name if no name was provided.
+  if (!isset($variables['name'])) {
+    $variables['name'] = 'google_chart_' . $count;
+  }
+
+  $container_id = str_replace('_', '-', $variables['name']);
+
+  // Create the chart wrapper.
+  $chart = new GoogleChartsChartWrapper(array(
+    'chartType' => $variables['type'],
+    'chartName' => $variables['name'],
+    'containerId' => $container_id,
+    'options' => $variables['options'],
+  ));
+
+  // Set the data table.
+  $chart->setDataTable($data);
+
+  // Incriment the count for unique identifiers.
+  $count++;
+  
+  $output = "<div class='google-chart' id='$container_id'></div>";
+
+  $chart->draw();
+
+  return $output;
+}
+
+/**
+ * Theme callback for rendering a populated chart wrapper.
+ */
+function theme_google_chart_wrapper($variables) {
+  $wrapper = $variables['chart_wrapper'];
+  $output = '<div class="google-chart ' . str_replace('_', '-', $wrapper->getChartName()) . '" id="' . $wrapper->getContainerId() . '"></div>';
+
+  if (!empty($variables['data']) && $variables['data'] instanceof GoogleChartsDataTable) {
+    $wrapper->setDataTable($varaibles['data']);
+  }
+
+  // Draw the chart (initialize javascript).
+  $wrapper->draw();
+
+  return $output;
+}
+
+/**
+ * Theme callback for rendering a dashboard.
+ */
+function theme_google_dashboard($variables) {
+  // We *must* be passed a data table, though we can perhaps create
+  // a data table from column and row information in the future.
+  if (!$variables['data'] instanceof GoogleChartsDataTable) {
+    return;
+  }
+
+  $dashboard = $variables['dashboard'];
+
+  // Bind controls and charts together (if any).
+  $dashboard->bind($variables['controls'], $variables['charts']);
+
+  $output = '<div class="google-dashboard" id="' . $dashboard->getContainerId() . '">';
+
+  // Add divs for all bound controls.
+  foreach ($dashboard->getContainerIds('controls') as $control_id) {
+    $output .= '<div class="google-control" id="' . $control_id . '"></div>';
+  }
+
+  // Add divs for all bound charts.
+  foreach ($dashboard->getContainerIds('charts') as $chart_id) {
+    $output .= '<div class="google-chart" id="' . $chart_id . '"></div>';
+  }
+  $output .= '</div>';
+
+  // Draw the data table (initialize javascript).
+  $dashboard->draw($variables['data']);
+
+  return $output;
+}
+
+/**
+ * Adds Google Chart javascript files and settings.
+ */
+function google_charts_add_js($type = NULL, $container = NULL, array $options = array()) {
+  drupal_add_js('https://www.google.com/jsapi', 'external');
+  drupal_add_js(drupal_get_path('module', 'google_charts') . '/js/google_charts.js');
+
+  $settings = array();
+  if (isset($type) && isset($container)) {
+    $settings['GoogleCharts'][$type][$container] = $options;
+    drupal_add_js($settings, 'setting');
+  }
+}
+
+/**
+ * Returns an associative array of available column types.
+ */
+function google_charts_column_types($type = NULL) {
+  $column_types = array(
+    'string' => t('String'),
+    'number' => t('Number'),
+    'date' => t('Date'),
+    'datetime' => t('Date/time'),
+    'timeofday' => t('Time of day'),
+  );
+
+  if (isset($type)) {
+    return isset($column_types[$type]) ? $column_types[$type] : FALSE;
+  }
+  return $column_types;
+}
+
+/**
+ * Returns an associative array of available column formats.
+ */
+function google_charts_column_formats($format = NULL) {
+  $formats = array(
+    'ArrowFormat' => t('Arrow'),
+    'BarFormat' => t('Bar'),
+    'ColorFormat' => t('Color'),
+    'DateFormat' => t('Date'),
+    'NumberFormat' => t('Number'),
+  );
+
+  if (isset($format)) {
+    return isset($formats[$format]) ? $formats[$format] : FALSE;
+  }
+  return $formats;
+}
+
+/**
+ * Returns an associaitve array of available column roles.
+ */
+function google_charts_column_roles($role = NULL) {
+  $column_roles = array(
+    'annotation' => t('Annotation'),
+    'annotationText' => t('Annotation text'),
+    'certainty' => t('Certainty'),
+    'emphasis' => t('Emphasis'),
+    'interval' => t('Interval'),
+    'scope' => t('Scope'),
+    'tooltip' => t('Tooltip'),
+  );
+
+  if (isset($role)) {
+    return isset($column_roles[$role]) ? $column_roles[$role] : FALSE;
+  }
+  return $column_roles;
+}
+
+/**
+ * Returns an associative array of data types expected by certain roles.
+ */
+function google_charts_column_roles_data_types($role = NULL) {
+  $data_types = array(
+    'annotation' => 'string',
+    'annotationText' => 'string',
+    'certainty' => 'boolean',
+    'emphasis' => 'boolean',
+    'interval' => 'number',
+    'scope' => 'boolean',
+    'tooltip' => 'string',
+  );
+
+  if (isset($role)) {
+    return isset($data_types[$role]) ? $data_types[$role] : FALSE;
+  }
+  return $data_types;
+}
+
+/**
+ * Returns an associative array of column modifiers.
+ */
+function google_charts_column_modifiers($modifier = NULL) {
+  $modifiers = array(
+    'month' => t('Month'),
+    'quarter' => t('Quarter'),
+    'year' => t('Year'),
+  );
+
+  if (isset($modifier)) {
+    return isset($modifiers[$modifier]) ? $modifiers[$modifier] : FALSE;
+  }
+  return $modifiers;
+}
+
+/**
+ * Returns an associative array of data types returned by modifiers.
+ */
+function google_charts_column_modifiers_data_types($modifier = NULL) {
+  $data_types = array(
+    'month' => 'string',
+    'quarter' => 'string',
+    'year' => 'number',
+  );
+
+  if (isset($modifier)) {
+    return isset($data_types[$modifier]) ? $data_types[$modifier] : FALSE;
+  }
+  return $data_types;
+}
+
+/**
+ * Returns an associative array of column aggregation functions.
+ */
+function google_charts_column_aggregation($aggregation = NULL) {
+  $aggregation = array(
+    'avg' => t('Average'),
+    'count' => t('Count'),
+    'min' => t('Minimum'),
+    'max' => t('Maximum'),
+    'sum' => t('Sum'),
+  );
+
+  if (isset($aggregation)) {
+    return isset($aggregations[$aggregation]) ? $aggregations[$aggregation] : FALSE;
+  }
+  return $aggregations;
+}
+
+/**
+ * Returns an associative array of data types returned by aggregation functions.
+ * @param unknown_type $aggregation
+ */
+function google_charts_group_aggregation_data_types($aggregation = NULL) {
+  $data_types = array(
+    'avg' => 'number',
+    'count' => 'number',
+    'min' => array('string', 'number', 'date'),
+    'max' => array('string', 'number', 'date'),
+    'sum' => 'number',
+  );
+
+  if (isset($aggregation)) {
+    return isset($data_types[$aggregation]) ? $data_types[$aggregation] : FALSE;
+  }
+  return $data_types;
+}

@@ -1,0 +1,456 @@
+<?php
+
+/**
+ * Implements hook_library().
+ */
+function webform_service_library() {
+  return array(
+    'webform_service' => array(
+      'title' => t('Webform Service JavaScript API'),
+      'version' => '0.1',
+      'js' => array(
+        drupal_get_path('module', 'webform_service') . '/js/webform_service_crud.js' => array(),
+      )
+    )
+  );
+}
+
+/*
+ * Implements hook_services_resources().
+ */
+function webform_service_services_resources() {
+
+  // Include our resources.
+  require_once("resources/webform_resource.inc");
+  require_once("resources/submission_resource.inc");
+
+  // Add the resources.
+  $resources = array();
+  $resources += _webform_resource_definition();
+  $resources += _submission_resource_definition();
+  return $resources;
+}
+
+/**
+ * Determine whether the current user has access to a submission.
+ */
+function webform_service_submission_access($op = 'view', $args = array()) {
+
+  // Check to make sure they always have a UUID.
+  if (empty($args[0])) {
+    return services_error(t('Must provide a uuid.'), 404);
+  }
+
+  // The create submission access check.
+  if ($op == 'create') {
+
+    // Get the webform provided the UUID.
+    if (is_array($args[0]) || is_object($args[0])) {
+      $webform = (object)$args[0];
+    }
+    else if (in_array(gettype($args[0]), array('string', 'integer'))) {
+      $webform = webform_service_resource_load($args[0]);
+    }
+
+    // If they can access the node view, then they can create a submission.
+    $webform = webform_node_view($webform, 'node');
+    return empty($webform['#enabled']);
+  }
+  else {
+
+    // Get the webform and submission from the uuid.
+    $webform = webform_submission_uuid_webform($args[0]);
+    $submission = webform_submission_uuid_submission($args[0]);
+    return webform_submission_access($webform, $submission, $op);
+  }
+}
+
+/**
+ * Determine whether the current user can access a node resource.
+ *
+ * @param $op
+ *   One of view, update, create, delete per node_access().
+ * @param $args
+ *   Resource arguments passed through from the original request.
+ * @param $load_node
+ *   Function that loads the node.
+ *
+ * @return bool
+ *
+ * @see node_access()
+ */
+function webform_service_resource_access($op = 'view', $type = '', $args = array()) {
+  $node = null;
+
+  if (empty($args[0])) {
+    return services_error(t('Must provide a uuid.'), 404);
+  }
+  else if (is_array($args[0]) || is_object($args[0])) {
+    $node = (object)$args[0];
+  }
+  else if (in_array(gettype($args[0]), array('string', 'integer'))) {
+    $node = webform_service_resource_load($args[0]);
+  }
+
+  if ($node) {
+
+    // Return the node resource access.
+    $node->type = $type;
+    module_load_include('inc', 'services', 'resources/node_resource');
+    return _node_resource_access($op, array($node));
+  }
+  else {
+
+    // Return a 404.
+    return services_error(t('Webform @uuid could not be found', array('@uuid' => $args[0])), 404);
+  }
+}
+
+/**
+ * Get the field value provided the entity and field name.
+ *
+ * @param type $entity
+ * @param type $field_name
+ * @param type $value_name
+ * @return string
+ */
+function webform_service_field_value($entity, $field_name, $value_name = 'value') {
+  $items = field_get_items('node', $entity, $field_name);
+  if (isset($items[0])) {
+    if (isset($items[0][$value_name])) {
+      return $items[0][$value_name];
+    }
+    else {
+      return $items[0];
+    }
+  }
+  return '';
+}
+
+/**
+ * Returns the data structure for webform components.
+ */
+function webform_service_get_components($webform) {
+  $components = array();
+  foreach ($webform['components'] as $cid => $component) {
+    $components[$cid] = array(
+      'cid' => $component['cid'],
+      'form_key' => $component['form_key'],
+      'name' => $component['name'],
+      'type' => $component['type'],
+    );
+  }
+  return $components;
+}
+
+/**
+ * Returns a data structure of a webform object.
+ */
+function webform_service_get_webform($entity) {
+  $webform = array();
+  if (isset($entity->webform)) {
+    $webform = array(
+      'components' => webform_service_get_components($entity->webform)
+    );
+  }
+  return $webform;
+}
+
+/**
+ * Returns a single media resource.
+ *
+ * @param $entity
+ *   UUID or the whole object of the media we want to return.
+ * @return
+ *   Node object or FALSE if not found.
+ *
+ * @see node_load()
+ */
+function webform_service_get_resource($entity) {
+  $resource = array();
+  if (gettype($entity) === 'string') {
+    $entity = webform_service_resource_load($entity);
+  }
+  if ($entity) {
+    $uri = services_resource_uri(array('webform', $entity->uuid));
+    $resource = (object)array(
+      'uri' => services_resource_uri(array('webform', $entity->uuid)),
+      'uuid' => $entity->uuid,
+      'title' => $entity->title,
+      'description' => webform_service_field_value($entity, 'body'),
+      'created' => $entity->created,
+      'updated' => $entity->changed,
+      'submissions' => $uri . '/submissions',
+      'webform' => webform_service_get_webform($entity),
+    );
+  }
+
+  // Return the resource.
+  return $resource;
+}
+
+/**
+ * Provided a submission in external format, this parses it to what webform expects.
+ * @param type $webform
+ * @param type $submission
+ */
+function webform_service_parse_submission($webform, $submission) {
+  global $user;
+
+  // Make sure the submission and webforms are objects.
+  $webform = (object)$webform;
+  $submission = (object)$submission;
+
+  // Normalize the submission data.
+  $data = array();
+  foreach ($submission->data as $cid => $values) {
+    $data[$cid] = $values['values'];
+  }
+
+  // Setup the submission object.
+  $submission_obj = (object)array(
+    'nid' => !empty($submission->nid) ? $submission->nid : $webform->nid,
+    'uid' => !empty($submission->uid) ? $submission->uid : $user->uid,
+    'submitted' => REQUEST_TIME,
+    'remote_addr' => !empty($submission->remote_addr) ? $submission->remote_addr : ip_address(),
+    'is_draft' => 0,
+    'data' => $data,
+  );
+
+  // Add the submission ID if it is provided.
+  if (!empty($submission->sid)) {
+    $submission_obj->sid = $submission->sid;
+  }
+
+  return $submission_obj;
+}
+
+/**
+ * Returns a single submission provided the uuid.
+ *
+ * @param string The submission UUID.
+ */
+function webform_service_get_submission_by_uuid($uuid) {
+  $webform = webform_submission_uuid_webform($uuid);
+  $submission = webform_submission_uuid_submission($uuid);
+  return webform_service_get_submission($webform, $submission);
+}
+
+/**
+ * Returns a single submission resource.
+ *
+ * @param object The webform node object.
+ * @param array The submission array.
+ */
+function webform_service_get_submission($webform, $submission) {
+
+  $return = array();
+
+  // If the webform and submission exist.
+  if ($webform && $submission) {
+
+    // Get the components and establish the values.
+    $components = webform_service_get_components($webform->webform);
+
+    // Get the submitted values from this submission.
+    $values = array();
+    foreach ($components as $cid => $component) {
+      $values[$cid] = array(
+        'form_key' => $component['form_key'],
+        'cid' => $component['cid'],
+        'type' => $component['type'],
+        'values' => $submission->data[$component['cid']]
+      );
+    }
+
+    // Load the user account.
+    $account = user_load($submission->uid);
+
+    // The return for this submission.
+    $return = array(
+      'sid' => $submission->sid,
+      'uuid' => $submission->uuid,
+      'uri' => services_resource_uri(array('submission', $submission->uuid)),
+      'webform' => services_resource_uri(array('webform', $webform->uuid)),
+      'user' => $account->uuid,
+      'submitted' => $submission->submitted,
+      'data' => $values
+    );
+  }
+
+  return $return;
+}
+
+/**
+ * Retrieve all submissions for a webform.
+ */
+function webform_service_submission_index($uuid, $page, $page_size) {
+  if ($webform = webform_service_resource_load($uuid)) {
+
+    // Establish the index.
+    $index = array();
+    module_load_include('inc', 'webform', 'includes/webform.submissions');
+    $submissions = webform_get_submissions(array('nid' => $webform->nid));
+
+    // Iterate through each submission and get the submission.
+    foreach ($submissions as $submission) {
+      $index[] = webform_service_get_submission($webform, $submission);
+    }
+    return $index;
+  }
+  else {
+
+    // Return a 404.
+    return services_error(t('@uuid could not be found', array('@uuid' => $uuid)), 404);
+  }
+}
+
+/**
+ * Return an array of optionally paged nids based on a set of criteria.
+ *
+ * @param array $params
+ *   - $page (int) Page number of results to return (in pages of 20).
+ *   - $search (string  A keyword being searched for.
+ *   - $page_size (int) The number of items to be returned.
+ * @param $function
+ *   The function (as a string) called to get the index we want.
+ * @param $query
+ *   The entity field query.
+ *
+ * @return
+ *   An array of node objects.
+ */
+function webform_service_resource_index($type, $result) {
+  $items = array();
+  if (!empty($result['node'])) {
+    $entities = entity_load('node', array_keys($result['node']));
+    foreach ($entities as $entity) {
+      $item = webform_service_get_resource($entity);
+      if ($item) {
+        $items[] = $item;
+      }
+    }
+  }
+  return $items;
+}
+
+/**
+ * Load a resource provided its uuid.  Much like node_load, but with uuid's...
+ *
+ * @param type $uuid
+ * @return type
+ */
+function webform_service_resource_load($uuid, $reset = FALSE) {
+  $webforms = &drupal_static(__FUNCTION__);
+  if ($reset || empty($webforms[$uuid])) {
+    $webforms[$uuid] = reset(entity_uuid_load('node', array($uuid), array(), $reset));
+  }
+  return empty($webforms[$uuid]) ? NULL : $webforms[$uuid];
+}
+
+/**
+ * Sets the default values for a new webform.
+ *
+ * @param type $webform
+ * @param type $defaults
+ */
+function webform_service_set_webform_values(&$webform, $values, $force_set = FALSE) {
+  foreach ($values as $param => $value) {
+    if (is_array($value)) {
+      if (!isset($webform[$param])) {
+        $webform[$param] = array();
+      }
+      webform_service_set_webform_values($webform[$param], $value, $force_set);
+    }
+    else {
+      if (!$force_set || !isset($webform[$param])) {
+        $webform[$param] = $value;
+      }
+    }
+  }
+}
+
+/**
+ * Prepares a webform object to be created or updated.
+ *
+ * @param type $webform
+ */
+function webform_service_webform_prepare($webform, &$node = null) {
+
+  // Cast the webform node to an array.
+  $webform = (array)$webform;
+
+  // If the node is defined, then update the base level params.
+  if ($node) {
+    foreach ($webform['webform'] as $param => $value) {
+      if (!is_array($value)) {
+        $node->webform[$param] = $value;
+      }
+    }
+  }
+
+  // Set the default webform values.
+  webform_service_set_webform_values($webform['webform'], webform_node_defaults(), TRUE);
+
+  // We now need to iterate through the components.
+  if (!empty($webform['webform']['components'])) {
+
+    // Include the components.
+    module_load_include('inc', 'webform', 'includes/webform.components');
+    $weight = 0;
+    foreach ($webform['webform']['components'] as &$component) {
+
+      // Make sure they provide a type.
+      if (!empty($component['type'])) {
+
+        // Make sure the component has some required values if it doesn't already exist.
+        if (empty($component['cid'])) {
+          $component['pid'] = empty($components['pid']) ? 0 : $components['pid'];
+          $component['form_key'] = $component['form_key'];
+          $component['weight'] = empty($components['weight']) ? ($weight++) : $components['weight'];
+          webform_component_defaults($component);
+        }
+
+        // Update the node component.
+        if ($node) {
+          if (empty($component['cid'])) {
+            $cid = max(array_keys($node->webform['components'])) + 1;
+            $component['nid'] = $node->nid;
+          }
+          else {
+            $cid = $component['cid'];
+          }
+          $node->webform['components'][$cid] = $component;
+        }
+      }
+    }
+  }
+
+  // Return the new webform.
+  return $webform;
+}
+
+/**
+ * Implements hook_node_submit
+ */
+function webform_service_node_submit($node, $form, &$form_state) {
+  $break = TRUE;
+}
+
+/**
+ * The number of objects to return.
+ *
+ * @param int $page_size
+ */
+function webform_service_validate_parameters(&$page_size) {
+
+  // Setting the default limit for the number of objects we would like to allow
+  // to be returned on a single page.
+  $default_pagesize = variable_get("services_node_index_page_size", 20);
+
+  // If the user doesn't have access to make unlimited queries and the page size
+  // request is over the default then reset the page size to the default limit.
+  if (!user_access('perform unlimited index queries') && $page_size > $default_pagesize) {
+    $page_size = $default_pagesize;
+  }
+}

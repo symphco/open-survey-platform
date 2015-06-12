@@ -1,0 +1,183 @@
+
+/* Solution to strange resizing issue, 
+   thanks to spamsammy, here:
+   https://drupal.org/node/1241750#comment-7147666
+*/
+form.arrange-fields-container * {
+  -moz-box-sizing: content-box;
+  -webkit-box-sizing: content-box;
+  box-sizing: content-box;
+}
+
+
+.arrange-fields-container {
+ position: relative;
+ border: 2px solid #bbb;
+ background: url("grid1.png"); 
+ min-height: 25px;
+}
+
+.arrange-fields-container .draggable-form-item {
+  border: 1px solid #ccc;  
+  background-color: #eee;
+  display: inline-block;
+  position: absolute; 
+  /*float: left;*/
+  z-index: 100;    
+}
+/* 
+   This corrects a weird bug: when people chose "inline" for the label for
+   webform components, it resizes the textarea all weird.  This resets
+   the label back to default block-level.
+*/
+.arrange-fields-container .draggable-form-item .webform-container-inline div.ui-wrapper, 
+.arrange-fields-container .draggable-form-item .webform-container-inline div.description,
+.arrange-fields-container .draggable-form-item .webform-container-inline div.ui-resizable-handle {
+  display: block;
+}
+
+.arrange-fields-container .ui-resizable-handle {
+  min-width: 10px;
+  min-height: 10px;
+  background-color: #ddd;
+}
+
+.arrange-fields-container .draggable-form-item fieldset{
+  display: block;
+  background-color: white;
+}
+
+.draggable-form-item .form-item, .draggable-form-item fieldset {
+  margin: 0;
+  padding: 0;
+}
+
+.draggable-form-item .form-submit
+{
+  margin: 5px;
+}
+
+.form-item-arrange-fields-position-data
+{
+  display: none;
+}
+
+.arrange-fields-container .grippie {
+  display: none;
+}
+
+.arrange-fields-container .disabled-button {
+  color: #999;
+}
+
+.arrange-fields-control-handle
+{
+  display: none;
+  position: absolute;
+  top: -10px;
+  right: 15px;
+  background-color: white;
+  border: 1px solid #ccc;
+  padding: 2px;
+  min-width: 50px;
+  z-index: 9000;
+  text-align: right;
+  font-size: 0.8em;
+}
+.arrange-fields-control-handle-markup {
+  min-width: 30px;
+}
+.arrange-fields-control-handle .arrange-fields-handle-region {
+  cursor: move;
+}
+
+/* Vertical tabs... */
+.arrange-fields-container .arrange-fields-vertical-tabs-wrapper {
+  width: 98%;
+}
+
+
+
+
+
+#arrange-fields-config-dialog, 
+#arrange-fields-markup-dialog
+{
+  background-color: white;
+  padding: 5px;
+  z-index: 1000;
+}
+
+#arrange-fields-markup-dialog .af-markup-body {
+  width: 95%;
+  height: 100px;
+  font-size: 0.9em;
+}
+
+#arrange-fields-markup-dialog .af-wrapper-style {
+  width: 60%;
+  font-size: 0.9em;
+}
+
+
+#arrange-fields-config-dialog table
+{
+  padding: 0;
+  margin: 0;
+}
+
+#arrange-fields-config-dialog table tbody
+{
+  border: 0;  
+}
+
+.ui-dialog-titlebar {
+  background-color: #ccc;
+  padding: 5px;
+}
+.ui-dialog-titlebar-close {
+  display: none;
+}
+
+.ui-dialog-buttonpane {
+  bottom: 10px !important;
+  right: 10px;
+  text-align: right; 
+}
+
+.ui-dialog-buttonpane button {
+  margin-left: 20px;
+}
+
+.arrange-fields-other-form-caveat
+{
+  font-size: 0.85em;
+  line-height: 1.1em;
+  margin-left: 20px;
+  
+}
+
+a.arrange-fields-config-link, 
+a.arrange-fields-config-markup-link
+{
+  background: url("list_components.gif") no-repeat;
+  padding-left: 16px;
+  padding-bottom: 5px;
+  height: 16px;
+}
+a.arrange-fields-config-link:hover {
+  text-decoration: none;
+}
+
+.arrange-fields-draggable-markup {
+  padding-right: 5px;
+  padding-bottom: 3px;
+  min-width: 20px;
+  min-height: 10px;
+}
+
+#arrange-fields-markup-dialog .af-delete-button {
+  position: absolute;
+  bottom: 10px;
+  display: block;
+}

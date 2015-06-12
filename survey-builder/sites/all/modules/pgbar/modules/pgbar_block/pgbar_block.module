@@ -1,0 +1,27 @@
+<?php
+
+/**
+ * Implements hook_bean_types_api_info().
+ */
+function pgbar_block_bean_types_api_info() {
+  return array('api' => 4);
+}
+
+/**
+ * Implements hook_bean_types().
+ */
+function pgbar_block_bean_types() {
+  $plugins = array();
+  $plugin_path = drupal_get_path('module', 'pgbar_block') . 'bean';
+  $plugins['pgbar_fixed'] = array(
+    'label' => t('A progress bar block'),
+    'description' => t('Display a progress bar with a manually configurable state.'),
+    'handler' => array(
+      'class' => 'PgbarFixedBean',
+      'parent' => 'bean',
+    ),
+    'path' => $plugin_path,
+    'file' => 'pgbar_bean.inc.php',
+  );
+  return $plugins;
+}

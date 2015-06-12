@@ -1,0 +1,199 @@
+/* 
+ * Custom Styles from OpenED 
+ */
+
+/* Survey -- taking it */
+.webform-component input[type=text],
+.webform-component input[type=number],
+.webform-component select {
+	margin-bottom: 5px; 
+}
+.webform-client-form label { text-transform: none; }
+.webform-component .form-item label { text-transform: capitalize; }
+.webform-component input[type="radio"] { margin-top: 0px; position: relative; top: -3px; }
+.form-actions input[type="submit"] { color: white; background: #366a1c;}
+.form-actions input[type="submit"]:hover { background: #000;}
+.webform-container-inline.webform-component-select div,
+.webform-container-inline .form-type-select div { display: block; } 
+.webform-client-form { clear:both; }
+select { max-width: 300px; }
+input[type=number] { max-width: 150px; display: inline-block; }
+form input[type=text],
+form input[type=number] { max-width: 600px; float:none;}
+#user-login input[type=text],
+#user-login-form input[type=text],
+#user-register-form input[type=text] { max-width: none; } 
+.webform-component div.description { font-style: italic; position: relative; }
+.webform-datepicker div.form-item { float: left; width: auto; padding-right: 5px; }
+input.webform-calendar { position: relative; top: 4px; }
+.form-actions input[type=submit] { margin-right: 10px; }
+span.field-suffix { position: relative; top: 5px; }
+
+div.webform-component--grades-covered-at-this-school { clear:both; }
+.webform-datepicker div.form-item { margin: 0 0; }
+
+/* Make markup type look like label */
+.form-item.webform-component-markup { 
+	margin-top: 2em;
+	margin-bottom: .5em;
+}
+.form-item.webform-component-markup p { font-weight: bold; margin-bottom: 0; }
+
+/* Make fieldset legends look like label */
+fieldset.webform-component-fieldset legend {
+	font-size: 14px;
+	margin-bottom: 0px;
+	font-weight: bold; 
+	line-height: 20px;
+}
+
+/* SCHOOLS LISTING PAGE */
+
+/* Search form at top */
+.page-schools form#views-exposed-form-projects-search-results-page {
+	float: left;
+	margin-right: 30px;
+}
+
+/* Table Cell Borders */
+table.views-table tr.odd td {
+	background-color: #fff; 
+	border-bottom: 1px dotted #414141;
+	border-left: 1px dotted #414141;
+	border-top: 1px dotted #414141;
+}
+table.views-table tr.even td {
+	background-color: #fff; 
+	border-bottom: 1px dotted #414141;
+	border-left: 1px dotted #414141;
+	border-right: 1px dotted #414141;
+}
+table.views-table tr td.views-field-value-5 { 
+	border-right: 1px dotted #414141; 
+}
+
+/* Table Cell Fonts */
+table.views-table tr td.views-field-value-13,
+table.views-table tr td.views-field-value-14 {
+	font-family: "Roboto Condensed";
+	font-weight: bold;
+	font-size: 24px;
+}
+table.views-table tr td.views-field-value {
+	font-family: "Roboto";
+	font-weight: bold;
+	font-size: 11px;
+	text-transform: uppercase;
+}
+table.views-table tr td.views-field-value-12,
+table.views-table tr td.views-field-value-4,
+table.views-table tr td.views-field-value-6,
+table.views-table tr td.views-field-value-5 {
+	font-family: "Roboto";
+	font-weight: bold;
+	font-size: 15px;
+	text-transform: uppercase;
+}
+
+table.views-table .views-field-nothing { text-align: left; padding: 0 0 0 0; }
+table.views-table .views-field-nothing p.where { text-transform: capitalize; }
+
+.views-exposed-form .views-exposed-widget { width: 100%; }
+#views-exposed-form-schools-page-1 .bef-checkboxes label,
+#views-exposed-form-schools-page-1 .form-type-checkbox label {	
+	font-size: 13px;
+	border-bottom: none;
+	display: inline-block;
+	margin-left: 10px;
+	width: 80%;
+	background: none;
+	font-weight: normal;
+}
+table.views-table .views-field-nothing div.sub {
+	width: 30%; 
+	float: left;
+	height: 130px;
+	border-right: 1px dotted #414141;
+	padding-top: 10px;
+	text-align: center;
+	font-size: 20px;
+}
+table.views-table .views-field-nothing div.where.sub { width: 39%; }
+table.views-table .views-field-nothing .absentee.sub { 
+	border-right: 0px;
+}
+table.views-table .views-field-nothing .absentee.sub span { font-size: 50px; position: relative; top: 40px; }
+
+table.views-table .views-field-nothing .region-block table.sub-region tr td { border: 0px; font-size: 11px; font-weight: bold; }
+
+table.views-table .views-field-nothing .region-block table.sub-region tr td span { font-size: 14px; font-weight: normal; }
+
+table.views-table .views-field-nothing .access-block table.sub-access tr td { border: 0px; width: 33% }
+
+table.views-table .views-field-nothing .access-block table.sub-access tr td span { display: block; padding-top: 10px; font-size: 16px; color: #5eaf4b; }
+table.views-table .views-field-nothing .access-block table.sub-access tr td span.no { color: #ff0000; }
+
+table.views-table .views-field-nothing .access-block { padding-top: 20px; }
+
+/*
+table.views-table .views-field-nothing .access-block td.water { background: url("../img/schools-listing-icon-water.png") no-repeat center center; }
+table.views-table .views-field-nothing .access-block td.electricity { background: url("../img/schools-listing-icon-electricity.png") no-repeat center center; }
+table.views-table .views-field-nothing .access-block td.computers { background: url("../img/schools-listing-icon-computers.png") no-repeat center center; }
+*/
+
+/* MAP PAGE */
+
+/* Styling content in the popup */
+.leaflet-popup-content h4 { text-transform: capitalize; text-align: center;}
+.span12 .leaflet-popup-content h4 { margin-right: 0px; font-size: 20px; }
+
+.leaflet-popup-content div.top { padding-bottom: 10px; border-bottom: 1px solid #ccc; }
+
+.leaflet-popup-content tbody { border-top: none; }
+.leaflet-popup-content table tr { border: 0; }
+.leaflet-popup-content .school-top { font-size: 15px; font-weight: bold; }
+.leaflet-popup-content .school-top span { 
+		margin-top: 10px;
+		display: block;
+		font-weight: 200; 
+		font-size: 30px;
+}
+
+.leaflet-popup-content .sub-access .access { font-size: 20px; }
+.leaflet-popup-content .sub-access span {
+	display: block;
+	padding-top: 30px;
+	font-size: 16px;
+	color: #5eaf4b;
+}
+.leaflet-popup-content .sub-access span.no {
+	color: #ff0000
+}
+.leaflet-popup-content .sub-access td.water {
+	background: url("../img/schools-listing-icon-water.png") no-repeat center center;
+}
+
+.leaflet-popup-content .sub-access td.electricity {
+	background: url("../img/schools-listing-icon-electricity.png") no-repeat center center;
+}
+
+.leaflet-popup-content .sub-access td.computers {
+	background: url("../img/schools-listing-icon-computers.png") no-repeat center center;
+}
+
+/* NAV ACTIVE STATES */
+.page-schools li.projects a,
+.page-node-34040 li.map a { color: #366a1c !important; }
+
+/* DASHBOARD PAGE */
+
+/* MESSAGES */
+div.messages.status.form {
+	text-transform: none; 
+	font-style: italic; 
+}
+.messages.form a { text-decoration: underline; }
+
+.views-field.views-field-field-images .field-content {
+	text-align: left!important;
+}

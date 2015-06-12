@@ -1,0 +1,56 @@
+<?php
+
+/**
+ * @file
+ * Provides a multiupload functionality for Drag & Drop Upload Widget.
+ */
+
+/**
+ * Custom process callback for the 'dragndrop_upload_widget' widget.
+ */
+function dragndrop_upload_multi_element_process($element, &$form_state, $form) {
+  $element['upload']['#attributes'] = array('multiple' => 'multiple');
+  $element['upload']['#name'] .= '[]';
+
+  return $element;
+}
+
+/**
+ * Implements hook_field_widget_form_alter().
+ *
+ * Adds necessary value_callback and process callbacks for the multiupload
+ * functionality.
+ */
+function dragndrop_upload_multi_field_widget_form_alter(&$element, &$form_state, $context) {
+  $widget =& $context['instance']['widget'];
+  if (in_array($widget['type'], array('dragndrop_upload_file', 'dragndrop_upload_image'))) {
+    if ($widget['settings']['multiupload']) {
+      if ($context['field']['cardinality'] != 1) {
+        foreach (element_children($element) as $delta) {
+          $element[$delta]['#value_callback'] = 'mfw_field_widget_value';
+          $element[$delta]['#process'][] = 'dragndrop_upload_multi_element_process';
+        }
+        $element['#process'][] = 'mfw_field_widget_process_multiple';
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_dnd_upload_widget_settings_form_alter().
+ */
+function dragndrop_upload_multi_dnd_upload_widget_settings_form_alter(&$form) {
+  $form['dragndrop_fieldset']['multiupload'] += array(
+    '#description' => t(
+      'Allow multiple files to be uploaded at once.<br/>The setting is'
+      . ' available when field cardinality (Number of values) is greater than 1'
+    ),
+    '#states' => array(
+      'disabled' => array(
+        'select[name="field[cardinality]"]' => array(
+          'value' => 1,
+        ),
+      ),
+    ),
+  );
+}

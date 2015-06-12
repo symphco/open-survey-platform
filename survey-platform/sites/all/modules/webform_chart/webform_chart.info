@@ -1,0 +1,12 @@
+name = Webform Chart
+description = Webform Chart is a bridge between one or more charting libraries and Webform module to display charts based on numerical/statistical data from webform submissions.
+core = 7.x
+package = Webform
+dependencies[] = webform
+
+; Information added by Drupal.org packaging script on 2014-03-24
+version = "7.x-2.0"
+core = "7.x"
+project = "webform_chart"
+datestamp = "1395660262"
+

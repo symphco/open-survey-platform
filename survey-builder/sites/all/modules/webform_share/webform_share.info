@@ -1,0 +1,12 @@
+name = Webform Share
+description = "Enables users with the right permissions to export webforms. These exports are used to set the default components when creating webforms of configured types."
+core = 7.x
+package = Webform
+dependencies[] = webform
+
+; Information added by drupal.org packaging script on 2012-06-21
+version = "7.x-1.2"
+core = "7.x"
+project = "webform_share"
+datestamp = "1340277123"
+

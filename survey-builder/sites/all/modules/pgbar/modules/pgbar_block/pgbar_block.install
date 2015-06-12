@@ -1,0 +1,45 @@
+<?php
+
+/**
+ * Implements hook_install().
+ */
+function pgbar_block_install() {
+  _pgbar_block_instance_settings();
+}
+
+function _pgbar_block_instance_settings() {
+  $instance = array(
+    'field_name' => 'pgbar_default',
+    'entity_type' => 'bean',
+    'bundle' => 'pgbar_fixed',
+    'label' => 'Progress bar',
+    'description' => 'A manually configured progress bar.',
+    'display' => array(
+      'default' => array(
+        'label' => 'hidden',
+        'type' => 'pgbar',
+        'module' => 'pgbar',
+        'settings' => array(
+        ),
+        'weight' => 1,
+      ),
+    ),
+    'required' => 0,
+    'settings' => array(
+      'source' => 'null.inc',
+    ),
+    'widget' => array(
+      'type' => 'pgbar',
+      'module' => 'pgbar',
+      'active' => 1,
+      'settings' => array(
+        'size' => 60,
+      ),
+      'weight' => 32,
+    ),
+    'default_value' => array(
+      'state' => 1,
+    ),
+  );
+  field_create_instance($instance);
+}

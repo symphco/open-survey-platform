@@ -1,0 +1,171 @@
+/* ============================== */
+/* ! Headers   */
+/* ============================== */
+
+.page-hdr {
+	border-bottom: 1px dotted #000;
+	padding-bottom: 25px;
+}
+
+h1,h2,h3,h4,h5,h6 {
+	line-height: 1em;
+    font-weight: 100;
+	color: #414141;
+    text-transform: uppercase;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+h1 { 
+	font-size: 40px;
+    font-weight: 400;
+    
+}
+
+
+h2 { 
+	font-size: 30px;
+}
+
+
+h3 { 
+	font-size: 25px;
+    font-weight: 500;
+}
+
+.sidebar h3 {
+    font-weight: 400;
+    border-bottom: 1px solid #414141;
+    padding-bottom: 10px;
+    margin-bottom: 25px;
+    font-size: 20px;
+}
+
+
+h4 { 
+	font-size: 26px;
+	font-weight: 500;
+}
+
+h5 { 
+	font-size: 18px;
+	font-weight: 500;
+}
+
+
+h6 {
+	font-size: 14px;
+}
+
+h1 img, h2 img, h3 img,
+h4 img, h5 img, h6 img {
+	margin: 0;
+}
+
+
+
+/* ============================== */
+/* ! Paragraphs   */
+/* ============================== */
+
+blockquote {
+	font-size: 16px;
+	padding: 10px 10px 1px 10px;
+	color: #494949;	
+}
+
+p img.left {
+	padding: 0 15px;
+	padding-left: 0;
+	float: left;
+}
+
+p img.right {
+	padding: 0 15px;
+	padding-right: 0;
+	float: right;
+}
+
+
+p {
+	margin-bottom: 15px;
+	line-height: 24px;
+	font-size: 14px;
+	letter-spacing: 0.08em;
+    font-family: 'Roboto', sans-serif;
+    font-weight: 300;
+}
+
+a {
+    color: #414141;
+}
+
+a:hover {
+    text-decoration: none;
+    color: #000;
+}
+
+.not-front .field-name-body a {
+	color: #2795b6;
+	text-decoration: underline;
+}
+
+.not-front .field-name-body a:hover {
+	text-decoration: none;
+}
+
+/* ============================== */
+/* ! Lists   */
+/* ============================== */
+
+li {
+	line-height: 1.5em;
+	list-style-position: inside;
+	margin-bottom: 15px;
+}
+
+.recent ul {
+	margin-left: 0px !important;
+	
+}
+
+
+
+.recent li {
+	list-style-type: none;
+	margin-left: 0 !important;
+	display: block;
+	text-transform: uppercase;
+	font-weight: 500;
+	float: none;
+	border-bottom: 1px solid #c2c2c2;
+	padding-bottom: 15px;
+}
+
+.recent-date {
+	font-style: italic;
+	font-weight: 400;
+	font-weight: 12px;
+}
+
+.legend p {
+	font-size: 10px;
+	padding-right: 20px;
+	font-weight: 500;
+	line-height: 25px;
+}
+
+.legend img {
+	float: left;
+	clear:both;
+	margin-right: 10px;
+}
+
+.disclaimer {
+	font-size: 12px;
+	line-height: 16px;
+	margin-top: 25px;
+}
+
+
+

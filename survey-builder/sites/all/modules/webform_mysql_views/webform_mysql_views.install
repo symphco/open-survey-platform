@@ -1,0 +1,21 @@
+<?php
+
+/**
+ * @file
+ * Webform MySQL Views module install/schema hooks.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function webform_mysql_views_uninstall() {
+  //Get list of Webform MySQL views in the system, and drop them
+  $views = variable_get('webform_mysql_views_views', array());
+  foreach ($views as $key => $val) {
+    db_query("DROP VIEW {" . $val . "}");
+  }
+
+  //Delete module's variables
+  variable_del('webform_mysql_views_meets_reqs');
+  variable_del('webform_mysql_views_views');
+}

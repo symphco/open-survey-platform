@@ -1,0 +1,92 @@
+/* Foundation v2.1.4 http://foundation.zurb.com */
+/* Artfully masterminded by ZURB  */
+
+/* -------------------------------------------------- 
+   Table of Contents
+-----------------------------------------------------
+:: Shared Styles
+:: Page Name 1
+:: Page Name 2
+*/
+
+
+/* -----------------------------------------
+   Shared Styles
+----------------------------------------- */
+
+table th { font-weight: 400; text-transform: uppercase; background: #272727; color: #c2c2c2; font-size: 12px; margin-bottom: 15px;}
+table td, table th { padding: 9px 10px; text-align: center; border-right: 1px dotted #fff; }
+
+table tr {
+	border: 1px dotted #414141;
+}
+
+table td {
+	border-right: 1px dotted #414141;
+	color: #464646;
+	font-size: 13px;
+	line-height: 15px;
+}
+
+
+.highlight {
+	font-size: 24px;
+	font-weight: 700;
+}
+
+.highlight-2 {
+	font-size: 18px;
+	font-weight: 500;
+	color: #464646;
+	text-transform: uppercase;
+}
+
+
+.status {
+	font-size: 15px;
+	font-weight: 500;
+	text-transform: uppercase;
+}
+
+.location {
+	font-size: 13px;
+}
+
+.spacer, .spacer td {
+	margin-top: 25px !important;
+	border: none;
+}
+
+/* Mobile */
+@media only screen and (max-width: 767px) {
+	
+	table.respons { margin-bottom: 0; overflow: scroll; }
+	
+	.pinned { position: absolute; left: 0; top: 0; background: #fff; width: 35%; overflow: hidden; overflow-x: scroll; border-right: 1px solid #ccc; border-left: 1px solid #ccc; }
+	.pinned table { border-right: none; border-left: none; width: 100%; }
+	.pinned table th, .pinned table td { white-space: nowrap; }
+	.pinned td:last-child { border-bottom: 0; }
+	
+	div.table-wrapper { position: relative; margin-bottom: 20px; overflow: hidden; border-right: 1px solid #ccc; }
+	div.table-wrapper div.scrollable { margin-left: 35%; }
+	div.table-wrapper div.scrollable { overflow: scroll; overflow-y: hidden; }	
+	
+	table.respons td, table.respons th { position: relative; white-space: nowrap; overflow: hidden; }
+	table.respons th:first-child, table.respons td:first-child, table.respons td:first-child, table.respons.pinned td { display: none; }
+	.highlight {
+	font-size: 12px !important;
+	font-weight: 700;
+}
+	
+}
+
+
+/* Tablet */
+@media only screen and (max-width: 1023px) {
+
+	.highlight {
+	font-size: 12px !important;
+	font-weight: 700;
+}
+	
+}

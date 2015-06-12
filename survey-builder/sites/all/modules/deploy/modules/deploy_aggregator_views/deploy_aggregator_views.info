@@ -1,0 +1,15 @@
+name = Views deployment aggregator
+description = Aggregates content to a deployment plan by executing a user defined view.
+package = Deployment
+core = 7.x
+dependencies[] = deploy
+dependencies[] = views
+
+files[] = plugins/DeployAggregatorViews.inc
+
+; Information added by Drupal.org packaging script on 2014-12-05
+version = "7.x-2.0-alpha3+9-dev"
+core = "7.x"
+project = "deploy"
+datestamp = "1417771688"
+

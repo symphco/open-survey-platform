@@ -1,0 +1,15 @@
+; $Id: 
+name = Webform Ajax Page
+description = Webform element to create multipage webforms handled by ajax.
+core = 7.x
+package = Webform
+
+dependencies[] = webform
+files[] = webform_ajax_page.module
+files[] = webform_ajax_page.js
+; Information added by drupal.org packaging script on 2012-07-18
+version = "7.x-1.2"
+core = "7.x"
+project = "webform_ajax_page"
+datestamp = "1342598270"
+

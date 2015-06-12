@@ -1,0 +1,139 @@
+﻿<?php
+/**
+ * Implements hook_help().
+ */
+function duplicate_role_help($path, $arg) {
+  $output = '';
+  switch($path) {
+    case "admin/people/duplicate-role":
+    $output = '<p>' . t("Duplicate an existing role with the same permissions for modules and taxonomies as the original ones") . '</p>';
+    break;
+  }
+  return $output;
+}
+
+
+/**
+ * Implements hook_permission().
+ */
+function duplicate_role_permission() {
+  return array(
+    'administer duplicate role' => array(
+      'title' => t('Administer Duplicate Role')
+    ),
+  );
+}
+
+
+/**
+ * Implements hook_menu().
+ */
+function duplicate_role_menu() {
+  $items = array();
+  $items['admin/people/duplicate-role'] = array(
+    'title' => 'Duplicate Role',
+    'description' => 'A module that duplicates an existing role and its permissions.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('duplicate_role_form'),
+    'access arguments' => array('administer duplicate role'),
+    'type' => MENU_LOCAL_TASK,
+    'tab_parent' => 'admin/people/permissions'
+  );
+  return $items;
+}
+
+
+/**
+ * Form submit. Insert records into database.
+ */
+function duplicate_role_form_submit($form, &$form_state) {
+  
+  $base_role  = filter_xss($form_state['values']['base_role']);
+  $new_role_name = filter_xss($form_state['values']['new_role_name']);
+  
+  if(db_table_exists('role')) {
+    
+    // Create new role
+    $new_role = db_insert('role');
+    $new_role->fields(array('name' => $new_role_name));
+    $new_role->execute();
+    
+    // Capture new role id
+    $new_role_rid = db_select('role', 'r')
+    ->fields('r', array('rid'))
+    ->condition('name', $new_role_name, '=')
+    ->execute()
+    ->fetchAssoc();
+  }
+
+  //Permission for old role in table "permission"  
+  if(db_table_exists('role_permission')) {
+    
+    $old_perms = db_select('role_permission', 'rp')
+    ->fields('rp', array('permission', 'module'))
+    ->condition('rid', $base_role, '=')
+    ->execute();
+    
+    while($data = $old_perms->fetchAssoc()) {
+      // Insert permissions on new role
+      $new_role_perms = db_insert('role_permission');
+      $new_role_perms->fields(array('rid' =>$new_role_rid , 'permission' => $data['permission'], 'module' => $data['module']));
+      $new_role_perms->execute(); 
+    }
+  }
+
+  drupal_set_message(t('New role %role_name added successfully.', array('%role_name' => $new_role_name)));
+}
+
+/**
+ * Form validate. Validate data before insert into database.
+ */
+function duplicate_role_form_validate($form, &$form_state) {
+  $new_role_name = filter_xss($form_state['values']['new_role_name']);
+  $roles = user_roles();
+  if(in_array($new_role_name, $roles)) {
+    form_set_error('new_role_name', t('This role %role_name already exists. Please try a different name.', array('%role_name' => $new_role_name)));
+  }
+}
+
+/**
+ * Module selection interface.
+ */
+function duplicate_role_form() {
+   
+  $form = array();
+  $u_roles = user_roles();
+  asort($u_roles);
+  
+  $options = array();
+  $options[] = t('-- Please Select One Role --');
+  
+  foreach ($u_roles as $key => $value) {
+    $options[$key] = $value;
+  }
+
+  $form['base_role'] = array(
+    '#type' => 'select',
+    '#title' => t('Choose role to duplicate'),
+    '#default_value' => variable_get('base_role', 0),
+    '#description' => t("Select role to duplicate"),
+    '#options' => $options,
+  );
+
+  $form['new_role_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('New role'),
+    '#default_value' => variable_get('new_role_name', ''),
+    '#required' => TRUE,
+    '#size' => 40,
+    '#maxlength' => 40,
+    '#description' => t("New role name"),
+  );   
+
+  $form['submit'] = array(
+    '#type' => 'submit', 
+    '#value' => t('Create new role')
+  );
+  
+  return $form;
+} 

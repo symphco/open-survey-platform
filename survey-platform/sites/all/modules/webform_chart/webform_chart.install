@@ -1,0 +1,88 @@
+<?php
+
+/**
+ * @file
+ * webform_chart.install
+ *
+ * Provides installing functions for the webform_chart module.
+ */
+
+/**
+ * Implements hook_schema_alter().
+ */
+function webform_chart_schema_alter(&$schema) {
+  // Add charting settings to the global webform setting.
+  if (isset($schema['webform'])) {
+    // Add field to existing schema.
+    $schema['webform']['fields']['charting'] = array(
+      'type'        => 'text',
+      'description' => 'Webform charting global configuration.',
+    );
+  }
+  // Add component charting settings to component setting.
+  if (isset($schema['webform_component'])) {
+    // Add field to existing schema.
+    $schema['webform_component']['fields']['charting'] = array(
+      'type'        => 'text',
+      'description' => 'Charting settings for this component.',
+    );
+  }
+}
+
+/**
+ * Implements hook_install().
+ */
+function webform_chart_install() {
+
+  $schema['webform'] = array();
+  $schema['webform_component'] = array();
+  webform_chart_schema_alter($schema);
+
+  // Update the webform table according to schema_alter/
+  foreach ($schema['webform']['fields'] as $name => $spec) {
+    db_add_field('webform', $name, $spec);
+  }
+  // Update the webform_component table according to schema_alter.
+  foreach ($schema['webform_component']['fields'] as $name => $spec) {
+    db_add_field('webform_component', $name, $spec);
+  }
+}
+
+/**
+ * Install the database for the first time.
+ */
+function webform_chart_update_7000() {
+
+  webform_chart_install();
+
+  return t('The update has correctly installed the database.');
+}
+
+/**
+ * Get ready for Webform Chart 7.x-1.0-rc3.
+ */
+function webform_chart_update_7001() {
+
+  webform_chart_uninstall();
+  webform_chart_install();
+
+  return t('The update has correctly reset the webform chart configurations.');
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function webform_chart_uninstall() {
+  $schema['webform'] = array();
+  $schema['webform_component'] = array();
+  webform_chart_schema_alter($schema);
+
+  // Delete the webform table according to schema_alter.
+  foreach ($schema['webform']['fields'] as $name => $spec) {
+    db_drop_field('webform', $name);
+  }
+  // Delete the webform_component table according to schema_alter.
+  foreach ($schema['webform_component']['fields'] as $name => $spec) {
+    db_drop_field('webform_component', $name);
+  }
+}

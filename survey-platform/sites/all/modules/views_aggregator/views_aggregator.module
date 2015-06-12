@@ -1,0 +1,313 @@
+<?php
+/**
+ * @file
+ * views_aggregator.module
+ *
+ * Module implementig post-query aggregation functions for Views tables.
+ */
+
+module_load_include('inc', 'views_aggregator', 'views_aggregator_functions');
+
+/**
+ * Implements hook_help().
+ */
+function views_aggregator_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#views_aggregator':
+      return t('See the <a href="@README">README</a> for View configuration instructions and examples or browse the <a href="@project">project</a> support queue.', array(
+        '@project' => url('http://drupal.org/project/views_aggregator'),
+        '@README' => url(drupal_get_path('module', 'views_aggregator') . '/README.txt'),
+      ));
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function views_aggregator_theme() {
+  $base_path = drupal_get_path('module', 'views_aggregator');
+  $themes = array(
+    'views_aggregator_plugin_style_table' => array(
+      // Pass $form to theme_views_aggregator_plugin_style_table($vars)
+      'render element' => 'form',
+      'path' => $base_path . '/views',
+      'file' => 'theme_views_aggregator_plugin_style_table.inc',
+    ),
+  );
+  return $themes;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function views_aggregator_views_api() {
+  return array(
+    'api' => views_api_version(),
+    'path' => drupal_get_path('module', 'views_aggregator') . '/views',
+  );
+}
+
+/**
+ * Get all avaialble aggregation function definitions.
+ *
+ * @param string $name
+ *   The name of the desired function or NULL to retrieve an array of functions.
+ *
+ * @return array
+ *   An array of aggregation function parameters.
+ */
+function views_aggregator_get_aggregation_functions_info($name = NULL) {
+
+  $aggregation_functions = &drupal_static(__FUNCTION__);
+
+  if (empty($aggregation_functions)) {
+    // Collect aggregations functions defined in other modules via their
+    // hook_views_aggregation_functions_info() implementations.
+    $aggregation_functions = module_invoke_all('views_aggregation_functions_info');
+
+    // Let other modules alter the aggregation functions by implementing
+    // hook_views_aggregation_functions_alter().
+    drupal_alter('views_aggregation_functions_info', $aggregation_functions);
+  }
+  // $aggregation_functions = (array)$aggregation_functions;
+  if (empty($name)) {
+    return $aggregation_functions;
+  }
+  return isset($aggregation_functions[$name]) ? $aggregation_functions[$name] : array();
+}
+
+/**
+ * Returns the result value at the intersection of column and row.
+ *
+ * @param object $field_handler
+ *   The handler associated with the table column being requested.
+ * @param int $row_num
+ *   index into the View result rows array
+ * @param bool $rendered
+ *   Whether to return the rendered as opposed to the raw value of the cell
+ *
+ * @return string
+ *   The content of the cell
+ */
+function views_aggregator_get_cell($field_handler, $row_num, $rendered = FALSE) {
+  return $field_handler->view->style_plugin->get_cell($field_handler, $row_num, $rendered);
+}
+
+/**
+ * Render a field from a raw value, with or without affecting the View result.
+ *
+ * The field will be rendered with appropriate CSS classes, without label.
+ *
+ * NB: This is messy code. The lengths we have to go through for this are just
+ * ridiculous. Patches welcome!
+ *
+ * @param object $views_field_handler
+ *   The views_handler_field_field object belonging to the View result field
+ * @param int $row_num
+ *   The view result row number to change. Pass NULL to simply render $raw_value
+ *   outside the context of a View, without affecting any rows.
+ * @param mixed $raw_value
+ *   Compound or simple value. If NULL the field is re-rendered using its
+ *   current (raw) value.
+ *
+ * @return string
+ *   The rendered value or FALSE, if the type of field is not supported.
+ */
+function views_aggregator_render_from_raw($views_field_handler, $row_num = NULL, $raw_value = NULL) {
+  $field_name = $views_field_handler->options['id'];
+  $field_alias = $views_field_handler->field_alias;
+  $row = isset($row_num) ? $views_field_handler->view->result[$row_num] : reset($views_field_handler->view->result);
+  $affect_view = isset($row_num);
+  if (!$row || empty($row->_field_data[$field_alias])) {
+    // This happens for ViewsPHP fields for instance, and for Math Expressions.
+    return !$row || $affect_view ? FALSE : (isset($raw_value) ? $raw_value : '?');
+  }
+  $_field_data = $row->_field_data[$field_alias];
+  if (isset($_field_data['entity']->{$field_name}) && is_scalar($_field_data['entity']->{$field_name})) {
+    // E.g. when the $views_field_handler refers to a node property (rather than
+    // a field) that does not have a renderer.
+    return $affect_view ? ($_field_data['entity']->{$field_name} = $raw_value) : $raw_value;
+  }
+  // Clone entity if we don't want to affect the current View results or if we
+  // have multiple displays.
+  $entity = $affect_view ? $_field_data['entity'] : clone $_field_data['entity'];
+  $entity_type = $_field_data['entity_type'];
+
+  $lang = is_a($views_field_handler, 'views_handler_field_field') ? $views_field_handler->field_language($entity_type, $entity) : $entity->language;
+  if (isset($raw_value)) {
+    // Only supporting values of 1 item, at index 0.
+    if (is_array($raw_value)) {
+      $entity->{$field_name}[$lang][0] = $raw_value;
+    }
+    elseif (isset($entity->{$field_name})) {
+      if (empty($entity->{$field_name})) {
+        // This occurs when the field is empty. May have the "No results text".
+        //$prev_value = isset($views_field_handler->options['empty']) ? $views_field_handler->options['empty'] : NULL;
+        // Cannot deal with string when expecting number.
+        $current_value = NULL;
+        $key = 'value';
+      }
+      else {
+        $current_value = reset($entity->{$field_name}[$lang][0]);
+        $key = key($entity->{$field_name}[$lang][0]);
+        // Cannot override 'tid' with non-numeric value. But like 'value',
+        // 'tid' may be set in case of min, max, most frequent etc.
+        if ($key != 'value' && !($key == 'tid' && is_numeric($raw_value))) {
+          return $affect_view ? FALSE : (isset($raw_value) ? $raw_value : $value);
+        }
+      }
+      $entity->{$field_name}[$lang][0][$key] = $raw_value;
+    }
+    if ($affect_view) {
+      // Next employ set_items() to re-render the $entity updated above,
+      // placing both the 'raw' and 'rendered' versions in field_...[].
+      $row->{'field_' . $field_name} = $views_field_handler->set_items($row, $row_num);
+      // Now set the current value back in case we have multiple displays, all
+      // drawing from the same entity.
+      if (isset($key)) {
+        $entity->{$field_name}[$lang][0][$key] = $current_value;
+      }
+
+      // The final step is to theme the rendered values.
+      // An alternative for the line below is:
+      //return $views_field_handler->advanced_render($row);
+      return $views_field_handler->theme($row);
+    }
+  }
+  $display = array(
+    'type' => $views_field_handler->options['type'],
+    'settings' => $views_field_handler->options['settings'],
+    'label' => 'hidden',
+  );
+  $render_array = field_view_field($entity_type, $entity, $field_name, $display, $lang);
+  return drupal_render($render_array);
+}
+
+/**
+ * Format a raw numeric value according to the supplied Views handler settings.
+ *
+ * @param object $views_field_handler
+ * @param double $raw_value
+ *
+ * @return string, number formatted according to Views handler settings
+ *
+ * Note: this was taken in part from views_handler_field_math::render($values)
+ */
+function views_aggregator_format_numeric_field($views_handler, $raw_value) {
+  if (!empty($views_handler->options['set_precision'])) {
+    $value = number_format($raw_value, $views_handler->options['precision'], $views_handler->options['decimal'], $views_handler->options['separator']);
+  }
+  elseif (isset($views_handler->options['separator'])) {
+    $remainder = abs($raw_value) - intval(abs($raw_value));
+    $value = $raw_value > 0 ? floor($raw_value) : ceil($raw_value);
+    $value = number_format($value, 0, '', $views_handler->options['separator']);
+    if ($remainder && isset($views_handler->options['decimal'])) {
+      // The substr may not be locale safe.
+      $value .= $views_handler->options['decimal'] . substr($remainder, 2);
+    }
+  }
+  else {
+    $value = $raw_value;
+  }
+  // Check to see if hiding should happen.
+  if ($views_handler->options['hide_empty'] && empty($value) && ($value !== 0 || $views_handler->options['empty_zero'])) {
+    return '';
+  }
+  // Should we format as a plural.
+  if (!empty($views_handler->options['format_plural']) && ($value != 0 || !$views_handler->options['empty_zero'])) {
+    $value = format_plural($value, $views_handler->options['format_plural_singular'], $views_handler->options['format_plural_plural']);
+  }
+  if (empty($value)) {
+    return '';
+  }
+  $prefix = isset($views_handler->options['prefix']) ? $views_handler->options['prefix'] : '';
+  $suffix = isset($views_handler->options['suffix']) ? $views_handler->options['suffix'] : '';
+  return $views_handler->sanitize_value($prefix . $value . $suffix, 'xss_admin');
+}
+
+/**
+ * Prepare to render the view results as a table style.
+ *
+ * The rendering to HTML happens in views-aggregator-results-table.tpl.php
+ *
+ * See also:
+ * template_preprocess_views_view_table(&$vars) in Views
+ */
+function template_preprocess_views_aggregator_results_table(&$vars) {
+  $view = $vars['view'];
+
+  if (!empty($view->totals) && array_filter($view->totals) != array()) {
+    $vars['totals'] = $view->totals;
+  }
+  $vars['totals_row_position'] =
+    $view->style_plugin->options['totals_row_position'][1] +
+    $view->style_plugin->options['totals_row_position'][2];
+
+  if (!isset($view->row_index)) {
+    // Have seen trouble when this is not set...
+    $view->row_index = 0;
+  }
+  // At this point template_preprocess_views_view(), will have put the (sorted)
+  // $view->result on $vars['rows'].
+  // template_preprocess_views_view_table() will add row and field classes,
+  // caption etc. It will also call render_fields() but that won't do anything
+  // as we've already done the rendering in view_aggregator_plugin_style_table::
+  // pre_render().
+  // The order of the rendered rows is determined by $view->result, while the
+  // content of each row comes from $view->style_plugin->rendered_fields.
+
+  // Loop code taken from template_preprocess_views_view_table(),
+  // file: views/theme/theme.inc
+  $options = $view->style_plugin->options;
+  $columns = $view->style_plugin->sanitize_columns($options['columns'], $view->field);
+  foreach ($columns as $field => $column) {
+    if ($field == $column) {
+      // Make all columns click-sortable, including Math Expressions.
+      $view->field[$field]->definition['click sortable'] = TRUE;
+    }
+  }
+
+  $vars['attributes_array']['id'] = drupal_html_id('views_aggregator_datatable');
+  template_preprocess_views_view_table($vars);
+}
+
+/**
+ * Strips the pager off an existing View display, then executes and renders it.
+ *
+ * The View is rebuilt from scratch, with the extra pager query. The View
+ * passed in as an argument is in no way affected.
+ *
+ * @param object $view_with_pager
+ *   a View object
+ *
+ * @param object $display_id
+ *   the display to execute, for example 'master', 'page', 'block'
+ *
+ * @return object
+ *   the pageless View, including the complete rendered results set on
+ *   $view->style_plugin->rendered_fields
+ */
+function views_aggregator_execute_view_without_pager($view_with_pager, $display_id = NULL) {
+  // This call exports the Views configuration, without any results attached.
+  // We're doing it this way, because none of the below work after clone_view().
+  // $view_without_pager->display['default']->handler->options['pager']['type'] = 'none';
+  // $view_without_pager->display[$display_id]->handler->options['pager']['type'] = 'none';
+  // $view_without_pager->display_handler->default_display->options['pager']['type'] = 'none';
+  // The code below is based on view::copy()
+  $code = $view_with_pager->export();
+  $code_without_pagers = str_replace(
+    "display_options['pager']['type'] = ",
+    "display_options['pager']['type'] = 'none'; //", $code, $num_pagers);
+
+  // This statement creates a View object by the name of $view.
+  eval($code_without_pagers);
+  // Avoid recursion in views_aggregator_plugin_style_table::pre_render().
+  $view->is_temp_views_aggregator = TRUE;
+  // Sneaky way to avoid caching is to set live_preview:
+  // $view->live_preview = TRUE;
+  // However this also switches on query trail. As this is a copy, let's keep
+  // caching behaviour the same as the original.
+  // Execute the display and render it.
+  $view->render($display_id);
+  return $view;
+}

@@ -1,0 +1,697 @@
+<?php
+
+/**
+ * @file
+ * Primary functions and hook implementations for Views Chart module.
+ */
+
+/**
+ * Implements hook_views_api().
+ */
+function views_chart_tools_views_api() {
+  return array(
+    'api' => 3,
+    'template path' => drupal_get_path('module', 'views_chart_tools') . '/theme',
+  );
+}
+
+/**
+ * Implements hook_init().
+ */
+function views_chart_tools_init() {
+  // We need to load Google Charts javascript during edits because the
+  // style plugin's scripts are not being loaded.
+  if (arg(0) == 'admin' && arg(1) == 'structure' && arg(2) == 'views' && (arg(3) == 'view' || arg(5) == 'edit')) {
+    google_charts_add_js();
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function views_chart_tools_form_views_ui_config_item_form_alter(&$form, &$form_state) {
+  // Add the style plugin options form to the form stack if the dashboard
+  // style plugin is being used. This is added on field/filter/sort forms.
+  // We need to ensure that the data table is properly set up after fields
+  // are altered. As for all the conditionals, we're just being extra cautious.
+  if (isset($form_state['view']->display['default']) && isset($form_state['view']->display['default']->display_options['style_plugin']) && $form_state['view']->display['default']->display_options['style_plugin'] == 'views_chart_tools_dashboard') {
+    views_ui_add_form_to_stack('display', $form_state['view'], $form_state['display_id'], array('style_options'));
+    // Update the form button text.
+    $form['buttons']['submit']['#value'] = t('Apply and continue');
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function views_chart_tools_form_views_ui_edit_display_form_alter(&$form, &$form_state, $form_id) {
+  // If the display extender is disabled then we have to prevent the user
+  // from enabling the dashboard style plugin. Extender options are essentially
+  // required to properly support the style plugin.
+  if ($form_state['section'] == 'style_plugin') {
+    $enabled = views_get_enabled_display_extenders();
+    if (!array_key_exists('views_chart_tools_dashboard_extender', $enabled) && isset($form['options']['style_plugin']['#options']['views_chart_tools_dashboard'])) {
+      unset($form['options']['style_plugin']['#options']['views_chart_tools_dashboard']);
+    }
+  }
+  // Otherwise, if this is an element options form then we need to provide
+  // a remove button for the element manually since views has no solid
+  // mechanism for doing so through the display extender.
+  elseif (strpos($form_state['section'], '_element_options') == strlen($form_state['section']) - 16) {
+    $form['buttons']['remove'] = array(
+      '#type' => 'submit',
+      '#value' => t('Remove'),
+      '#submit' => array('views_chart_tools_element_remove'),
+    );
+  }
+}
+
+/**
+ * Submit handler for removing an element from the dashboard.
+ */
+function views_chart_tools_element_remove($form, &$form_state) {
+  if (isset($form_state['values']['options']['name'])) {
+    $display =& $form_state['view']->display[$form_state['display_id']];
+    $display->handler->extender['views_chart_tools_dashboard_extender']->remove_element($form_state['values']['options']['name']);
+    // Write to cache
+    views_ui_cache_set($form_state['view']);
+  }
+}
+
+/**
+ * Implements hook_views_ui_display_tab_alter().
+ */
+function views_chart_tools_views_ui_display_tab_alter(&$build, $view, $display_id) {
+  // Add chart add/rearrange actions.
+  if (isset($build['details']['columns']['first']['dashboard_elements']) && !isset($build['details']['columns']['first']['dashboard_elements']['#actions'])) {
+    $build['details']['columns']['first']['dashboard_elements']['#actions'] = views_chart_tools_edit_form_bucket_actions($view, $display_id);
+
+    // Remove the add item field if some items already exist.
+    $options = $view->display['default']->handler->get_option('dashboard_elements');
+    if (!empty($options) && isset($build['details']['columns']['first']['dashboard_elements']['add_dashboard_element'])) {
+      unset($build['details']['columns']['first']['dashboard_elements']['add_dashboard_element']);
+    }
+  }
+}
+
+/**
+ * Adds action links to Views chart buckets.
+ */
+function views_chart_tools_edit_form_bucket_actions($view, $display_id) {
+  $display = $view->display[$display_id];
+
+  if (!$display) {
+    return;
+  }
+
+  $build = array(
+    '#title' => t('Dashboard element'),
+    '#name' => t('Dashboard element'),
+    '#theme_wrappers' => array('views_ui_display_tab_bucket'),
+  );
+  
+  $build['#name'] = $build['#title'] = t('Dashboard element');
+  
+  // Create an array of actions to pass to theme_links
+  $actions = array();
+  $items = $view->display['default']->handler->get_option('dashboard_elements');
+
+  if (!$items) {
+    $items = array();
+  }
+
+  $actions['add'] = array(
+    'title' => t('Add'),
+    'href' => "admin/structure/views/nojs/display/$view->name/$display->id/add_dashboard_element",
+    'attributes'=> array('class' => array('icon compact add', 'views-ajax-link'), 'title' => t('Add'), 'id' => 'views-add-dashboard-element'),
+    'html' => TRUE,
+  );
+
+  if (count($items) > 1) {
+    $actions['rearrange'] = array(
+      'title' => t('Rearrange'),
+      'href' => "admin/structure/views/nojs/display/$view->name/$display->id/rearrange_dashboard_elements",
+      'attributes' => array('class' => array('icon', 'compact', 'rearrange', 'views-ajax-link'), 'title' => t('Rearrange'), 'id' => 'views-rearrange-dashboard-elements'),
+      'html' => TRUE,
+    );
+  }
+  
+  // Render the array of links
+  $build = theme('links__ctools_dropbutton',
+    array(
+      'links' => $actions,
+      'attributes' => array(
+        'class' => array('inline', 'links', 'actions', 'horizontal', 'right')
+      ),
+      'class' => array('views-ui-settings-bucket-operations'),
+    )
+  );
+
+  return $build;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function views_chart_tools_theme() {
+  return array(
+    'views_chart_tools_data_table' => array(
+      'render element' => 'form',
+    ),
+    'views_chart_tools_data_table_overview' => array(
+      'render element' => 'element',
+    ),
+    'views_chart_tools_table_format' => array(
+      'render element' => 'form',
+    ),
+  );
+}
+
+/**
+ * Theme callback for the data table configuration form.
+ */
+function theme_views_chart_tools_data_table($variables) {
+  $form = $variables['form'];
+
+  $output = drupal_render($form['description']);
+
+  $header = array(
+    t('Field'),
+    t('Type'),
+    t('Role'),
+    array(
+      'data' => t('Grouping'),
+      'align' => 'center',
+      'colspan' => 2,
+    ),
+    t('Aggregation'),
+  );
+
+  $rows = array();
+  foreach (element_children($form['info']) as $id) {
+    $row = array();
+    $row[] = drupal_render($form['info'][$id]['name']);
+    $row[] = drupal_render($form['info'][$id]['type']);
+    $row[] = drupal_render($form['info'][$id]['role']);
+    $row[] = array(
+      'data' => drupal_render($form['info'][$id]['group']),
+      'align' => 'center',
+    );
+    $row[] = array(
+      'data' => drupal_render($form['info'][$id]['modifier']),
+      'align' => 'center',
+    );
+    $row[] = drupal_render($form['info'][$id]['aggregation']);
+    $rows[] = $row;
+  }
+
+  $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  $output .= drupal_render_children($form);
+  return $output;
+}
+
+/**
+ * Theme callback for the chart data table overview form.
+ */
+function theme_views_chart_tools_data_table_overview($variables) {
+  $element = $variables['element'];
+
+  $output = drupal_render($element['description']);
+  $header = array(
+    t('Field'),
+    t('Scope'),
+    t('Role'),
+    t('Available data types'),
+    t('Optional roles'),
+  );
+
+  $rows = array();
+  foreach (element_children($element['info']) as $id) {
+    $row = array();
+    $row[] = drupal_render($element['info'][$id]['name']);
+    $row[] = drupal_render($element['info'][$id]['scope']);
+    $row[] = drupal_render($element['info'][$id]['primary_role']);
+    $row[] = drupal_render($element['info'][$id]['available_types']);
+    $row[] = drupal_render($element['info'][$id]['available_roles']);
+    $rows[] = $row;
+  }
+
+  $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  $output .= drupal_render_children($element);
+  return $output;
+}
+
+/**
+ * Theme callback for the table chart configuration form.
+ */
+function theme_views_chart_tools_table_format($variables) {
+  $form = $variables['form'];
+
+  $output = drupal_render($form['overview']);
+
+  $header = array(
+    t('Field'),
+    array(
+      'data' => t('Sort'),
+      'align' => 'center',
+    ),
+    t('Format'),
+  );
+
+  $rows = array();
+  foreach (element_children($form['info']) as $id) {
+    $row = array();
+    $row[] = drupal_render($form['info'][$id]['name']);
+    $row[] = array(
+      'data' => drupal_render($form['sort_column'][$id]),
+      'align' => 'center',
+    );
+    $row[] = drupal_render($form['info'][$id]['format']);
+    $rows[] = $row;
+  }
+  
+  $rows[] = array(t('None'), array('align' => 'center', 'data' => drupal_render($form['sort_column']['none'])), '');
+
+  $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  $output .= drupal_render_children($form);
+  return $output;
+}
+
+/**
+ * Pre-render callback for dependent options form elements.
+ */
+function views_chart_tools_dependent_pre_render($element) {
+  if (isset($element['#options']) && isset($element['#dependent_options']) && isset($element['#dependent_options']['trigger'])) {
+    // Default to 'replace' if dependency type is not provided.
+    // Note: the other option is 'append' (though neither option is used as of yet).
+    if (!isset($element['#dependent_options']['method'])) {
+      $element['#dependent_options']['method'] = 'replace';
+    }
+
+    $js = $element['#dependent_options'];
+    $js['options'] = $element['#options'];
+
+    $element['#attached']['js'][] = drupal_get_path('module', 'views_chart_tools') . '/js/views_chart_tools.js';
+    $options['ViewsChartTools']['dependentOptions'][$element['#id']] = $js;
+    $element['#attached']['js'][] = array('type' => 'setting', 'data' => $options);
+  }
+  return $element;
+}
+
+/**
+ * Returns information about Views Chart elements.
+ */
+function views_chart_tools_element_info($name = NULL, $type = NULL) {
+  $info = &drupal_static(__FUNCTION__);
+
+  if (!isset($info)) {
+    $info = array();
+    foreach (module_implements('views_chart_tools_element_info') as $module) {
+      foreach (module_invoke($module, 'views_chart_tools_element_info') as $key => $value) {
+        $value += array(
+          'type' => '',
+          'name' => $key,
+          'module' => $module,
+          'alt' => '',
+          'description' => '',
+          'data format' => array(),
+        );
+
+        foreach ($value['data format'] as $column => $definition) {
+          $value['data format'][$column] += array(
+            'required' => FALSE,
+            'cardinality' => 1,
+            'default role' => 'data',
+            'roles' => array(),
+          );
+        }
+        $info[$key] = $value;
+      }
+    }
+  }
+
+  if (isset($type)) {
+    $return = array();
+    foreach ($info as $key => $value) {
+      if ($value['type'] == $type) {
+        $return[$key] = $value;
+      }
+    }
+    return isset($name) ? $return[$name] : $return;
+  }
+
+  return isset($name) ? $info[$name] : $info;
+}
+
+/**
+ * Implements hook_views_chart_tools_element_info().
+ */
+function views_chart_tools_views_chart_tools_element_info() {
+  $elements = array();
+
+  $line_chart_data = array(
+    0 => array(
+      'type' => array('string', 'number', 'date', 'datetime', 'timeofday'),
+      'label' => t('X-axis'),
+      'required' => TRUE,
+      'default role' => 'domain',
+      'roles' => array('annotation', 'annotationText'),
+    ),
+    1 => array(
+      'type' => array('number'),
+      'label' => t('Line values'),
+      'required' => TRUE,
+      'cardinality' => 'unlimited',
+      'default role' => 'data',
+      'roles' => array('annotation', 'annotationText', 'certainty', 'emphasis', 'interval', 'scope', 'tooltip'),
+    ),
+  );
+
+  $bar_chart_data = array(
+    0 => array(
+      'type' => array('string', 'number', 'date', 'datetime', 'timeofday'),
+      'label' => t('X-axis'),
+      'required' => TRUE,
+      'default role' => 'domain',
+    ),
+    1 => array(
+      'type' => array('number'),
+      'label' => t('Bar values'),
+      'required' => TRUE,
+      'cardinality' => 'unlimited',
+      'default role' => 'data',
+      'roles' => array('certainty', 'emphasis', 'interval', 'scope', 'tooltip'),
+    ),
+  );
+
+  $elements['AnnotatedTimeLine'] = array(
+    'type' => 'chart',
+    'title' => t('Annotated timeline'),
+    'alt' => t('Interactive'),
+    'data format' => array(
+      0 => array(
+        'type' => array('date', 'datetime'),
+        'label' => t('Date/time'),
+        'required' => TRUE,
+        'default role' => 'domain',
+      ),
+      1 => array(
+        'type' => array('number'),
+        'label' => t('Y value'),
+        'required' => TRUE,
+      ),
+      2 => array(
+        'type' => array('string'),
+        'label' => t('Annotation title'),
+      ),
+      3 => array(
+        'type' => array('string'),
+        'label' => t('Annotation text'),
+      ),
+    ),
+    'handler' => 'views_chart_tools_handler_chart_annotated_timeline',
+  );
+
+  $elements['ImageAreaChart'] = array(
+    'type' => 'chart',
+    'title' => t('Area chart'),
+    'alt' => t('Image'),
+    'data format' => $line_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_area_image',
+  );
+
+  $elements['AreaChart'] = array(
+    'type' => 'chart',
+    'title' => t('Area chart'),
+    'alt' => t('Interactive'),
+    'data format' => $line_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_area',
+  );
+
+  $elements['ImageBarChart'] = array(
+    'type' => 'chart',
+    'title' => t('Bar chart'),
+    'alt' => t('Image'),
+    'data format' => $bar_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_bar_image',
+  );
+
+  $elements['BarChart'] = array(
+    'type' => 'chart',
+    'title' => t('Bar chart'),
+    'alt' => t('Interactive'),
+    'data format' => $bar_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_bar',
+  );
+
+  $elements['BubbleChart'] = array(
+    'type' => 'chart',
+    'title' => t('Bubble chart'),
+    'alt' => t('Interactive'),
+    'data format' => array(
+      0 => array(
+        'type' => array('string'),
+        'label' => t('X-axis'),
+        'required' => TRUE,
+      ),
+      1 => array(
+        'type' => array('number'),
+        'label' => t('X-coordinate'),
+        'required' => TRUE,
+      ),
+      2 => array(
+        'type' => array('number'),
+        'label' => t('Y-coordinate'),
+        'required' => TRUE,
+      ),
+      3 => array(
+        'type' => array('string', 'number'),
+        'label' => t('Series ID'),
+      ),
+      4 => array(
+        'type' => array('number'),
+        'label' => t('Size'),
+      ),
+    ),
+    'handler' => 'views_chart_tools_handler_chart_bubble',
+  );
+
+  $elements['ColumnChart'] = array(
+    'type' => 'chart',
+    'title' => t('Column chart'),
+    'alt' => t('Interactive'),
+    'data format' => $bar_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_column',
+  );
+
+  $elements['ComboChart'] = array(
+    'type' => 'chart',
+    'title' => t('Combo chart'),
+    'alt' => t('Interactive'),
+    'data format' => $line_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_combo',
+  );
+
+  $elements['ImageLineChart'] = array(
+    'type' => 'chart',
+    'title' => t('Line chart'),
+    'alt' => t('Image'),
+    'data format' => $line_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_line_image',
+  );
+
+  $elements['LineChart'] = array(
+    'type' => 'chart',
+    'title' => t('Line chart'),
+    'alt' => t('Interactive'),
+    'data format' => $line_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_line',
+  );
+
+  $elements['Map'] = array(
+    'type' => 'chart',
+    'title' => t('Google map'),
+    'alt' => t('Interactive'),
+    'data format' => array(
+      0 => array(
+        'type' => array('string'),
+        'label' => t('Address'),
+        'required' => TRUE,
+        'default role' => 'domain',
+      ),
+      1 => array(
+        'type' => array('string'),
+        'label' => t('Description'),
+      ),
+    ),
+    'handler' => 'views_chart_tools_handler_map',
+  );
+
+  $elements['OrgChart'] = array(
+    'type' => 'chart',
+    'title' => t('Organizational chart'),
+    'alt' => t('Interactive'),
+    'data format' => array(
+      0 => array(
+        'type' => array('string'),
+        'label' => t('Identifier'),
+        'required' => TRUE,
+      ),
+      1 => array(
+        'type' => array('string'),
+        'label' => t('Parent'),
+      ),
+      2 => array(
+        'type' => array('string'),
+        'label' => t('Tooltip text'),
+      ),
+    ),
+    'handler' => 'views_chart_tools_handler_chart_org',
+  );
+
+  $pie_chart_data = array(
+    0 => array(
+      'type' => array('string'),
+      'label' => t('Slice labels'),
+      'required' => TRUE,
+      'default role' => 'domain',
+    ),
+    1 => array(
+      'type' => array('number'),
+      'label' => t('Slice values'),
+      'required' => TRUE,
+    ),
+  );
+
+  $elements['ImagePieChart'] = array(
+    'type' => 'chart',
+    'title' => t('Pie chart'),
+    'alt' => t('Image'),
+    'data format' => $pie_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_pie_image',
+  );
+
+  $elements['PieChart'] = array(
+    'type' => 'chart',
+    'title' => t('Pie chart'),
+    'alt' => t('Interactive'),
+    'data format' => $pie_chart_data,
+    'handler' => 'views_chart_tools_handler_chart_pie',
+  );
+
+  $elements['ScatterChart'] = array(
+    'type' => 'chart',
+    'title' => t('Scatter chart'),
+    'alt' => t('Interactive'),
+    'data format' => array(
+      0 => array(
+        'type' => array('number'),
+        'label' => t('X values'),
+        'required' => TRUE,
+      ),
+      1 => array(
+        'type' => array('number'),
+        'label' => t('Y values'),
+        'required' => TRUE,
+        'cardinality' => 'unlimited',
+        'roles' => array('certainty', 'emphasis', 'scope', 'tooltip'),
+      ),
+    ),
+    'handler' => 'views_chart_tools_handler_chart_scatter',
+  );
+
+  $elements['SteppedAreaChart'] = array(
+    'type' => 'chart',
+    'title' => t('Stepped area chart'),
+    'alt' => t('Interactive'),
+    'data format' => array(
+      0 => array(
+        'type' => array('string'),
+        'label' => t('X-axis'),
+        'required' => TRUE,
+        'default role' => 'domain',
+      ),
+      1 => array(
+        'type' => array('number'),
+        'label' => t('Bar values'),
+        'required' => TRUE,
+        'cardinality' => 'unlimited',
+        'roles' => array('certainty', 'emphasis', 'scope', 'tooltip'),
+      ),
+    ),
+    'handler' => 'views_chart_tools_handler_chart_stepped_area',
+  );
+
+  $elements['Table'] = array(
+    'type' => 'chart',
+    'title' => t('Table chart'),
+    'alt' => t('Interactive'),
+    'data format' => array(
+      0 => array(
+        'type' => array_keys(google_charts_column_types()),
+        'label' => t('Data'),
+        'required' => TRUE,
+        'cardinality' => 'unlimited',
+      ),
+    ),
+    'handler' => 'views_chart_tools_handler_chart_table',
+  );
+
+  // Control elements.
+  $elements['CategoryFilter'] = array(
+    'type' => 'control',
+    'title' => t('Category filter'),
+    'handler' => 'views_chart_tools_handler_control_category_filter',
+  );
+
+  $elements['ChartRangeFilter'] = array(
+    'type' => 'control',
+    'title' => t('Chart range filter'),
+    'handler' => 'views_chart_tools_handler_control_chart_range_filter',
+  );
+
+  $elements['NumberRangeFilter'] = array(
+    'type' => 'control',
+    'title' => t('Number range filter'),
+    'handler' => 'views_chart_tools_handler_control_number_range_filter',
+  );
+
+  $elements['StringFilter'] = array(
+    'type' => 'control',
+    'title' => t('String filter'),
+    'handler' => 'views_chart_tools_handler_control_string_filter',
+  );
+
+  return $elements;
+}
+
+/**
+ * Returns element titles suitable for options lists.
+ */
+function views_chart_tools_element_title($name = NULL, $type = NULL) {
+  // Allow views_chart_tools_element_info() to filter by type and name.
+  $info = views_chart_tools_element_info($name, $type);
+
+  foreach ($info as $key => $value) {
+    $titles[$key] = $value['title'];
+  }
+
+  return $titles;
+}
+
+/**
+ * Loads a handler using _views_create_handler().
+ */
+function views_chart_tools_get_handler($name, &$view, &$display = NULL) {
+  module_load_include('inc', 'views', 'includes/handlers');
+  $info = views_chart_tools_element_info($name);
+  if (!empty($info)) {
+    $handler = _views_create_handler($info, 'handler', 'dashboard_element');
+    // Make sure this is a views_chart_tools_handler_element object.
+    if ($handler instanceof views_chart_tools_handler_element) {
+      $handler->element_info = $info;
+      return $handler;
+    }
+  }
+  return FALSE;
+}

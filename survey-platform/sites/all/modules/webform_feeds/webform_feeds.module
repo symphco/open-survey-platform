@@ -1,0 +1,95 @@
+<?php
+
+/**
+ * Implements hook_feeds_plugins().
+ */
+function webform_feeds_feeds_plugins() {
+  $path = drupal_get_path('module', 'webform_feeds') . '/plugins';
+
+  $info = array();
+  $info['FeedsWebformFetcher'] = array(
+    'name' => 'Webform Fetcher',
+    'description' => 'Import content from a webform.',
+    'help' => 'Import content from a webform.',
+    'handler' => array(
+      'parent' => 'FeedsFetcher',
+      'class' => 'FeedsWebformFetcher',
+      'file' => 'FeedsWebformFetcher.inc',
+      'path' => $path,
+    ),
+  );
+  $info['FeedsWebformSubmissionParser'] = array(
+    'name' => 'Webform Submission Parser',
+    'description' => 'Parse data from a webform submission.',
+    'help' => 'Parse data from a webform submission.',
+    'handler' => array(
+      'parent' => 'FeedsParser',
+      'class' => 'FeedsWebformSubmissionParser',
+      'file' => 'FeedsWebformSubmissionParser.inc',
+      'path' => $path,
+    ),
+  );
+
+  return $info;
+}
+
+/**
+ * Implements hook_ctools_plugin_api().
+ */
+function webform_feeds_ctools_plugin_api($owner, $api) {
+  if ($owner == 'feeds' && $api == 'plugins') {
+    return array('version' => 1);
+  }
+}
+
+/**
+ * Helper function to retrieve available webforms.
+ */
+function _webform_feeds_available_webforms() {
+  $webform_types = webform_variable_get('webform_node_types');
+
+  $nodes = array();
+  if ($webform_types) {
+    $nodes = db_select('node', 'n')
+      ->fields('n')
+      ->condition('n.type', $webform_types, 'IN')
+      ->execute()
+      ->fetchAllAssoc('nid');
+	}
+
+	$webforms = array();
+	foreach ($nodes as $node) {
+		$webforms[$node->nid] = $node->title;
+	}
+
+	return $webforms;
+}
+
+/**
+ * Helper function to retrieve the components for a webform.
+ */
+function _webform_feeds_webform_components($node) {
+  if (empty($node->webform['components'])) {
+    return FALSE;
+  }
+  $components = $node->webform['components'];
+
+	return $components;
+}
+
+/**
+ * Helper function to add meta fields from a webform.
+ */
+function _webform_feeds_meta_fields() {
+	$fields = array(
+		'sid' => t('Submission ID'),
+		'nid' => t('Webform ID'),
+		'submitted' => t('Date submitted'),
+		'remote_addr' => t('IP number'),
+		'uid' => t('User ID'),
+		'name' => t('User name'),
+		'is_draft' => t('Draft status'),
+	);
+
+	return $fields;
+}

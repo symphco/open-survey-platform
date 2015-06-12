@@ -1,0 +1,30 @@
+name = ARMM Survey Builder Custom Theme
+description = Custom theme for the ARMM Survey Builder site based on a Foundation framework.
+core = 7.x
+engine = phptemplate
+
+screenshot = screenshot.png
+
+stylesheets[all][] = css/normalize.css
+stylesheets[all][] = css/foundation.min.css
+stylesheets[all][] = css/all.css
+stylesheets[all][] = css/chosen.css
+stylesheets[all][] = css/theme.css
+stylesheets[all][] = css/ben.css
+
+scripts[] = js/vendor/modernizr.js
+scripts[] = js/chosen.jquery.js
+scripts[] = js/custom.js
+
+regions[header]         = Header
+regions[navigation]     = Navigation
+regions[help]           = Help
+regions[highlighted]    = Highlighted
+regions[content]        = Content
+regions[below_content] 	= Below Content
+regions[sidebar_first]  = Left Sidebar
+regions[sidebar_second] = Right Sidebar
+regions[footer_first]   = Footer first
+regions[footer_middle]  = Footer middle
+regions[footer_last]    = Footer last
+

@@ -1,0 +1,14 @@
+name = Webform Submission UUID
+dependencies[] = webform
+dependencies[] = uuid
+description = Provides UUID's for Webform Submissions, which also includes Webform UUID.
+package = Webform
+core = 7.x
+
+files[] = webform_submission_uuid.module
+; Information added by drupal.org packaging script on 2013-10-26
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "webform_submission_uuid"
+datestamp = "1382756157"
+

@@ -1,0 +1,145 @@
+<?php
+
+/**
+ * @file
+ * Use field label as placeholder for all elements in choosen form.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function form_placeholder_menu() {
+  $items = array();
+  $items['admin/config/user-interface/form-placeholder'] = array(
+    'title' => 'Form placeholder',
+    'description' => 'Use field label as placeholder for all elements in choosen form.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('form_placeholder_admin_settings'),
+    'access arguments' => array('administer form placeholder'),
+    'file' => 'form_placeholder.admin.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function form_placeholder_permission() {
+  return array(
+    'administer form placeholder' => array(
+      'title' => t('Administer form placeholder settings'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_libraries_info().
+ */
+function form_placeholder_libraries_info() {
+  $libraries['jquery.placeholder'] = array(
+    'title' => 'jQuery Placeholder',
+    'vendor url' => 'https://github.com/mathiasbynens/jquery-placeholder',
+    'download url' => 'https://github.com/mathiasbynens/jquery-placeholder/archive/master.zip',
+    'version' => '2.0',
+    'files' => array(
+      'js' => array(
+        'jquery.placeholder.min.js',
+      ),
+    ),
+    'variants' => array(
+      'minified' => array(
+        'files' => array(
+          'js' => array(
+            'jquery.placeholder.min.js',
+          ),
+        ),
+      ),
+      'source' => array(
+        'files' => array(
+          'js' => array(
+            'jquery.placeholder.js',
+          ),
+        ),
+      ),
+    ),
+  );
+  return $libraries;
+}
+
+/**
+ * Implements hook_element_info_alter().
+ */
+function form_placeholder_element_info_alter(&$types) {
+  foreach (array_keys($types) as $type) {
+    switch ($type) {
+      case 'form':
+      case 'textarea':
+      case 'textfield':
+        $types[$type]['#process'][] = 'form_placeholder_process_element';
+        break;
+    }
+  }
+}
+
+/**
+ * Element process callback.
+ *
+ * @param array $element
+ *   The render array element.
+ *
+ * @return array
+ *   The processed element.
+ */
+function form_placeholder_process_element($element) {
+  if (isset($element['#form_placeholder'])) {
+    $action = $element['#form_placeholder'] == TRUE ? 'include' : 'exclude';
+    if ($element['#type'] == 'form') {
+      $element['#attributes']['class'][] = 'form-placeholder-' . $action . '-children';
+    }
+    else {
+      $element['#attributes']['class'][] = 'form-placeholder-' . $action;
+    }
+  }
+  if ($element['#type'] == 'form') {
+    form_placeholder_attach($element);
+  }
+  return $element;
+}
+
+/**
+ * Adds placeholder to form element.
+ * 
+ * @param array $element
+ *   Form API element.
+ */
+function form_placeholder_attach(&$element) {
+  // Adding jQuery Placeholder plugin library.
+  if (module_exists('libraries') && ($path = libraries_get_path('jquery.placeholder'))) {
+    $element['#attached']['js'][] = array(
+      'type' => 'file',
+      'data' => $path . '/jquery.placeholder.min.js',
+    );
+    $fallback_support = TRUE;
+  }
+  else {
+    $fallback_support = FALSE;
+  }
+  // Adding settings.
+  $whitechars = array("\r\n", "\r", "\n");
+  $element['#attached']['js'][] = array(
+    'type' => 'setting',
+    'data' => array(
+      'form_placeholder' => array(
+        'fallback_support' => $fallback_support,
+        'include' => str_replace($whitechars, ',', variable_get('form_placeholder_include', '')),
+        'exclude' => str_replace($whitechars, ',', variable_get('form_placeholder_exclude', '')),
+        'required_indicator' => variable_get('form_placeholder_required_indicator', 'append'),
+      ),
+    ),
+  );
+  // Adding module JS file.
+  $element['#attached']['js'][] = array(
+    'type' => 'file',
+    'data' => drupal_get_path('module', 'form_placeholder') . '/form_placeholder.js',
+  );
+}

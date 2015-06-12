@@ -1,0 +1,209 @@
+/* Additions coming from Drupal */
+
+/* Styling Drupal Content Tabs */
+ul.tabs { border-bottom: 0px; padding: 0 0 0 0; margin: 0px; height: 70px; margin-top: 20px; }
+ul.tabs li a {
+	font-family: "Roboto", sans-serif; 
+	font-size: 20px;
+	padding: 13px 20px;
+	text-transform: uppercase;
+	border: 1px solid #c9c9c9;
+	margin-right: -5px; 
+	background-color: white;
+	color: #000000;
+}
+.page-user form,
+.page-user-register form {
+	width: 693px;
+}
+ul.tabs li a:hover, ul.tabs.secondary li a:hover { background: #15ad9f; color: white; border: 1px solid #15ad9f; }
+ul.tabs li.active a, ul.tabs.secondary li.active a { background: #15ad9f; color: white; border: 1px solid #15ad9f;  }
+
+/* Updating Submit Button Styling */
+form input[type="submit"] { width: auto; padding-left: 10px; padding-right: 10px; float: none;}
+
+/* Conforming Views to HTML styling */
+.surveys h2 a {
+	font: 1em/1.2em 'robotobold', Arial, Helvetica, sans-serif;
+	margin: 0 0 17px;
+	color: #15ad9f;
+	text-transform: uppercase;
+}
+#block-views-surveys-block-1 .grid-row div.columns { 
+	min-height: 260px; 
+	border-bottom: 1px solid #e0e0e0; 
+	padding-bottom: 20px;
+/* 	margin-bottom: 20px;  */
+}
+.webform-component-time .webform-container-inline { display: inline-block;  width: 420px; }
+#edit-submitted-time-ampm { float: right; }
+.form-managed-file { max-width: 600px; }
+.left-off-canvas-toggle p.menu { margin-bottom: 0; float: left; margin-right: 10px; margin-top: -3px; }
+@media (max-width: 640px) {
+	#block-views-surveys-block-1 .grid-row div.columns { min-height: 0px; }
+}
+.surveys .empty { padding-left: 1.5em; }
+.surveys .large-3.columns, #block-views-surveys-block-1 .grid-row div.columns { float: left; padding: 1em 0; min-height: 0; }
+.surveys .title { margin: 0; }
+.surveys .title .row .columns { padding-left: 0; }
+.survey-col-container {min-height: 250px; /* padding-bottom: 20px;  */padding: 1em;}
+.logged-in .surveys .large-3.columns .survey-col-container:hover {
+	background: #f8f8f8;
+}
+#block-views-surveys-block-1 .surveys .grid-row:after { background: #fff; }
+
+/* 
+ * SURVEY BUILDER (APPLIES TO CLIENTS WHO ARE BUILDING SURVEYS NOT THROUGH THE ADMIN 
+ */
+ 
+/* remove the "revision information" from the client's view */
+.vertical-tabs { display: none; }
+
+/* remove the "text filter select" from the client's view */
+fieldset.filter-wrapper { display: none; }
+
+/* Style the webform tabs */
+ul.tabs.secondary { margin-top: -10px; height: 40px;}
+ul.tabs.secondary li a {
+	font-size: 1em;
+	text-transform: none; 
+	border: 1px solid #c9c9c9;
+	padding: 6px 10px;
+}
+ul.tabs.secondary li { padding: 0; border-right: 0px;  }
+
+/* Style the webform components table */
+table#webform-components { 
+	width: 100%; 
+}
+table#webform-components thead tr th {
+	font-size: 1em;
+}
+table#webform-components tbody tr td {
+	font-size: 1em; 
+	line-height: 1.2em;
+}
+table#webform-components a.tabledrag-handle .handle {
+	height: 25px;
+	width: 20px;
+}
+table#webform-components input[type="text"] { 
+	width: 80%;
+	padding: 8px 5px;
+	font-size: 12px;
+	height:30px;
+}
+table#webform-components .webform-component-type {
+	padding: 0.5625rem 0.625rem;
+}
+
+/* Style the "New Component" options screen */
+.page-node-webform-components-new .form-item input[type="checkbox"] { margin: 0 0 0 0; }
+.page-node-webform-components-new fieldset { min-height: 2em; }
+.page-node-webform-components-new fieldset legend { font-size: 1.245em; margin-bottom: .5em; }
+
+/* 
+ * SURVEY FRONT-END DISPLAY
+ */
+ form .form-item,
+ form .wfm-container { margin-bottom: 2em;}
+.node-survey .field-name-body { margin-bottom: 30px; }
+.webform-client-form { clear:both; }
+select { max-width: 300px; }
+select.month,
+select.day,
+select.year { max-width: 60px; }
+input[type=number] { max-width: 150px; display: inline-block; }
+form input[type=text],
+form input[type=number],
+form input[type=email],
+textarea, .grippie { max-width: 600px; float:none;}
+form textarea { min-width: 0; float: none;}
+#user-login input[type=text],
+#user-login-form input[type=text],
+#user-register-form input[type=text],
+#user-pass input[type=text] { max-width: none; } 
+.webform-component div.description { font-style: italic; position: relative; }
+.webform-datepicker div.form-item { float: left; width: auto; padding-right: 5px; }
+input.webform-calendar { position: relative; top: 4px; }
+.form-actions input[type=submit] { margin-right: 10px; }
+.form-type-radio input[type=radio] { position: relative; top: 5px; }
+.wfm-container input[type=submit] {
+	font-size: 10px; 
+	line-height: 30px; 
+	height: 30px;
+}
+.webform-container-inline div.chosen-container {
+	width: 188px !important;
+}
+.webform-client-form .webform-component-fieldset { padding-left: 10px; border: 1px solid #ccc; max-width: 620px; padding-top: 20px; margin-bottom: 20px; } { 
+
+}
+.webform-client-form .form-managed-file .form-file { margin-bottom: 2em;}
+/* FAQs */
+.view-faq .view-content h3 {
+	color: #006666; 
+	font-family: "robotobold", "Roboto";
+	font-size: 20px;
+	text-transform:uppercase;
+	border-bottom: 1px solid #e0e0e0;
+	padding-bottom: 10px;
+	margin-bottom: 15px; 
+	margin-top: 18px;
+}
+.view-faq .views-field-title {
+	color: #000; 
+	font-family: "robotobold";
+	font-size: 1.1em;
+}
+.view-faq .view-content .views-row {margin-bottom: 3px;}
+.view-faq .views-row-last {margin-bottom: 45px;}
+.view-faq .views-field-title:hover {
+	cursor: pointer; 
+}
+.view-faq .views-field-name,
+.view-faq .views-field-body { display: none; margin-top: 8px; margin-bottom: 10px; }
+
+/* CONTACT FORM */
+#webform-client-form-9 label { margin: 0 0 0 0; display: none; }
+
+/* TEMP */
+.node-type-survey .messages.status { display: none; }
+
+/* Survey Front End date picker */
+.webform-component .webform-datepicker select { min-width: 100px; }
+.webform-container-inline div.chosen-container,
+.webform-container-inline div.chosen-drop div { display:block; }
+.webform-component.webform-component-date { max-height: 70px; }
+
+/* Conditionals Tab */
+.webform-conditional { max-width: 700px; }
+.webform-conditional .webform-conditional-if { padding-top: 10px; }
+.webform-conditional-rule { width: 100%; }
+.webform-conditional-new { margin-left: 0px; max-width: none; }
+#webform-conditionals-table div { display: inline-block; }
+a.tabledrag-handle .handle { width: 30px;height: 30px; }
+.webform-conditional-andor { margin-left: 5px; }
+
+select {
+    -moz-appearance: none;
+    text-indent: 0.01px;
+    text-overflow: '';
+}
+
+table#webform-emails { width: 80%;  max-width: none; border-left: 0; border-right: 0; }
+table#webform-emails thead { background: transparent; }
+.page-node-webform table#webform-emails thead th { border: 1px solid #CCC; }
+table#webform-emails tbody tr { border: 1px solid #CCC;}
+table#webform-emails tbody td { border: 0; }
+table#webform-emails tbody tr.webform-add-form { background: transparent; border: 0;}
+table#webform-emails tbody tr.webform-add-form td {
+	padding-top: 40px;
+	text-align: left;
+	border: 0;
+}
+table#webform-emails div.form-item { margin-bottom: 40px; }
+input[type=checkbox],
+input[type=radio] {
+/* 	display: none; */
+}

@@ -1,0 +1,57 @@
+/* These are dummy styles for the Progress Bar module
+   styles written by Florian Engel - www.more-onion.com
+ */
+
+
+/* these are raw styles for the progress bar */
+
+.pgbar-bg {
+  width: 100%;
+  position: relative;
+  border: 1px solid #D1D1D1;
+}
+
+.pgbar-current {
+  background: none #B2D4EF;
+  height: 50px; 
+}
+
+.pgbar-percent {
+  color: #242424;
+  margin-top: -2em;
+  margin-left: 3em;
+  margin-bottom: 1em;
+  display: none;
+}
+
+
+.pgbar-numbers {
+  clear: both;
+  color: #242424;
+  position: relative;
+}
+
+.pgbar-target {
+  position: absolute;
+  right: 0;
+}
+
+
+.pgbar-wrapper {
+  max-width: 40em;
+  margin-bottom: 1.5em;
+}
+
+.pgbar-wrapper p span {
+  display: block;
+  margin-bottom: 1.5em;
+}
+
+
+.pgbar-bg .is {
+  font-weight: bold;
+  margin-top: 1em;
+  margin-right: .5em;
+  position: absolute;
+  left: 1em;
+}

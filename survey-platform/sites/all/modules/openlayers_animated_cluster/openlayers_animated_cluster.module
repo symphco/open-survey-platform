@@ -1,0 +1,21 @@
+<?php
+
+/**
+ * Implements hook_openlayers_behaviors().
+ *
+ * This is a ctools plugins hook.
+ */
+function openlayers_animated_cluster_openlayers_behaviors() {
+  return array(
+    'openlayers_animated_cluster_behavior' => array(
+      'title' => t('Animated Cluster'),
+      'description' => t('Animated Cluster.'),
+      'behavior' => array(
+        'path' => drupal_get_path('module', 'openlayers_animated_cluster'),
+        'file' => 'openlayers_animated_cluster_behavior.inc',
+        'class' => 'openlayers_animated_cluster_behavior',
+        'parent' => 'openlayers_behavior',
+      ),
+    ),
+  );
+}

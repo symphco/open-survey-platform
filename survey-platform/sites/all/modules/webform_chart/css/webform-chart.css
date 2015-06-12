@@ -1,0 +1,29 @@
+#webform-chart-page-title-block {
+  text-align: center;
+  margin-bottom: 2.5em;
+}
+#webform-chart-page-title {
+  font-size: 2em;
+}
+#webform-chart-page-subtitle {
+  font-size: 1.4em;
+  font-style: italic;
+}
+.separator {
+  width: 30%;
+  border-bottom: 1px solid grey;
+  display: block;
+  margin: 10px auto 0px;
+}
+
+.webform-chart-item {
+  margin-bottom: 2em;
+}
+.webform-chart-item .description {
+  margin: 0 0 0 2em;
+  font-style: italic;
+}
+.webform-chart-total-responses {
+  text-align: center;
+  font-style: italic;
+}

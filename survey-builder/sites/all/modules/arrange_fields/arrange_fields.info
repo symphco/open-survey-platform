@@ -1,0 +1,11 @@
+name = Arrange Fields
+description = Drag and drop form fields into any position.
+configure = admin/config/arrange-fields
+tags[] = arrange_fields
+core = 7.x 
+; Information added by  packaging script on 2013-11-05
+version = "7.x-1.14"
+core = "7.x"
+project = "arrange_fields"
+datestamp = "1383680010"
+

@@ -1,0 +1,554 @@
+<?php
+
+/**
+ * @file
+ * Allows delimited data files to be imported as results into webforms.
+ *
+ * This is usefull for importing results from other systems in to Webform.
+ *
+ * @author John C Jemmett <jjemmett@northwind-inc.com>
+ * @author Greg Bosen <gbosen@northwind-inc.com>
+ * @author Joe Corall <joe.corall@gmail.com>
+ *
+ */
+
+/**
+ * Implements hook_help().
+ */
+function webform_import_help($section = 'admin/help#webform', $arg = NULL) {
+  $output = '';
+  switch ($section) {
+  case 'node/%/webform/import':
+    $output = '<p>' . t('Webform import enables the upload of delimited files to fill in data.') . '</p>';
+    $output .= '<p>' . t('To upload data to this form:');
+    $items = array(
+      array(
+        'data' => 'Create a webform',
+      ),
+      array(
+        'data' => 'Create a delimited file with the data you want uploaded',
+        'children' => array(
+          'data' => 'Make sure that you have a single header row consisting of either the Component names or keys',
+        ),
+      ),
+      array(
+        'data' => 'Go to node/??? > Results > Upload',
+      ),
+      array(
+        'data' => 'Choose the type of delimiter, which type of header you are using and upload the file',
+      ),
+    );
+    $output .= theme("item_list", $items, $title, "ol");
+    $output .= '</p>';
+    break;
+  }
+  return $output;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function webform_import_menu() {
+  $items = array();
+  $items['node/%webform_menu/webform-results/upload'] = array(
+    'title' => 'Upload',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('webform_import_form', 1),
+    'access arguments' => array('access webform upload'),
+    'weight' => 10,
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['node/%webform_menu/webform-results/upload/%'] = array(
+    'title' => 'Get Template',
+    'page callback' => 'webform_import_csvtemplate',
+    'page arguments' => array(1, 4),
+    'access arguments' => array('access webform upload'),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_perm().
+ */
+function webform_import_permission() {
+  return array(
+    'access webform upload' => array(
+      'title' => t('Access Webform Upload'),
+      'description' => t('Grants access to the "Upload" tab on all webform content.Be cautious while enabling this privilege.'),
+    ),
+  );
+}
+
+/**
+ * Creates a downloadable CSV template file corresponding to a Webform structure.
+ *
+ * @param $node
+ *   The current webform node.
+ * @param $type
+ *   The type of delimited file template to download.
+ */
+function webform_import_csvtemplate($node, $type) {
+  $types = _webform_import_field_key_options();
+  $filename = check_plain($node->title) . '_upload.csv';
+  $headers = array();
+  $node->webform['components']['-1'] = array(
+    'name' => 'Submission ID',
+    'form_key' => 'SID',
+  );
+  if (array_key_exists($type, $types)) {
+
+    foreach ($node->webform['components'] as $cid => $component) {
+      $ctype = ( array_key_exists('type',$component) ? $component['type'] : '' );
+      if ($ctype != 'file' && $ctype != 'fieldset' && $ctype != 'markup' && $ctype != 'pagebreak') {
+        $headers[] = $component[$type];
+      }
+    }
+    // @TODO Make this line more generic.
+    $headers[] = ($type=='name') ? 'Submitted Time' : 'submitted_time';
+    $csv = join(',', $headers);
+
+    drupal_add_http_header('Content-Type', 'application/force-download');
+    drupal_add_http_header('Pragma', 'public');
+    drupal_add_http_header('Cache-Control', 'max-age=0');
+    drupal_add_http_header('Content-Type', 'text/csv');
+    drupal_add_http_header('Content-Disposition', "attachment; filename=$filename");
+    print $csv;
+  }
+  else {
+    drupal_set_message(t('Invalid header type.'), 'warning');
+    $path = explode('/', $_GET['q']);
+    array_pop($path);
+    $path = join('/', $path);
+    drupal_goto(drupal_get_path_alias($path));
+  }
+}
+
+/**
+ * Client form generation function. Allows the user to upload a delimited file.
+ *
+ * @param $form_state
+ *   The current form values of a submission, used in multipage webforms.
+ * @param $node
+ *   The current webform node.
+ *
+ * @see webform_import_form_submit()
+ * @ingroup forms
+ */
+function webform_import_form($node, $form_state) {
+  $node = $form_state['build_info']['args'][0];
+  global $user;
+
+  // Add a css class for all client forms.
+  $form['#attributes'] = array('class' => 'webform-import-form');
+
+  // Set the encoding type (necessary for file uploads).
+  $form['#attributes']['enctype'] = 'multipart/form-data';
+
+  $form['#redirect'] = 'node/' . $node->nid . '/webform-results/table';
+
+  $form['#submit'][] = 'webform_import_form_submit';
+  $form['details']['nid'] = array(
+    '#type' => 'value',
+    '#value' => $node->nid,
+  );
+  // @TODO Move these inline style elements into a css file.
+  $component_table = array();
+  $component_table['header'] = array(
+    array('data' => "<div><div style='float:left;'>" . t('Field Names') . "</div>&nbsp;<div style='float: right;'> " . l('download template', 'node/' . $node->nid . '/webform-results/upload/name',array('attributes'=>array('class'=>'button'))) . ' </div></div>'),
+    array('data' => "<div><div style='float:left;'>" . t('Field Form Keys') . "</div>&nbsp;<div style='float: right;'> " . l('download template', 'node/' . $node->nid . '/webform-results/upload/form_key',array('attributes'=>array('class'=>'button'))) . ' </div></div>'),
+  );
+  $component_table['rows'] = array();
+  $component_table['rows'][] = array('Submission ID', 'SID');
+  foreach ($node->webform['components'] as $cid => $component) {
+    if ($component['type'] == 'file' || $component['type'] == 'fieldset'|| $component['type'] == 'markup' || $component['type'] == 'pagebreak') {
+      continue;
+    }
+    $style = '';
+    //if (array_key_exists('mandatory', $component)) {
+    if (isset($component['mandatory'])) {
+      $style = 'font-weight: bold';
+    }
+    $component_table['rows'][] = array(
+      array( 'data' => $component['name'], 'style' => $style ),
+      array( 'data' => $component['form_key'], 'style' => $style ),
+    );
+  }
+  // Add Submission Date - will be used if present in the file
+  $component_table['rows'][] = array(
+      array( 'data' => 'Submission DateTime', 'style' => $style ),
+      array( 'data' => 'submitted_datetime', 'style' => $style ),
+  );
+
+  $form['header'] = array(
+    '#type' => 'item',
+    '#markup' => '<h2>' . t('Webform Import for "@title"', array('@title' => $node->title)) . '</h2>',
+  );
+
+  $form['instructions'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Instructions'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+
+  $instructions_items = array(
+    'items' => array(
+      array(
+        'data' => 'Component specific help:',
+        'children' => array(
+          '<strong>Date</strong>: must be in a format parsable by the php function <code>strtotime()</code> Any time data will be discarded.',
+          '<strong>Grid</strong>: option keys must be separated by commas and in the order of the questions in the webform. (e.g., <em>"red,male,car"</em> for the questions <em>"Favorite color, Gender, Type of automobile you drive"</em> respectively.)',
+          '<strong>File</strong>: * currently unable to handle this component.',
+          '<strong>Select</strong>: for multiselect answer keys must be separated by commas. (e.g., <em>"1,2,3"</em>)',
+          '<strong>Time</strong>: must be in a format parsable by the php function <code>strtotime()</code> Any date data will be discarded.',
+        ),
+      ),
+    ),
+    'type' => 'ol',
+    'title' => '',
+    'attributes' => array(),
+  );
+
+  $form['instructions']['instructions'] = array(
+    '#type' => 'item',
+    '#markup' => '<div>' . '<p>' . t('Webform import enables the upload of delimited files to fill in data.') . '</p>' .
+      '<p>' . t('Only user input fields are importable, excludes fieldset, markup &amp; pagebreak components.') .
+      '<p>' . t('The file must use the following values for column headers, anything else will be ignored.') .
+      theme('table', $component_table) .
+      '<small>' . t('* bold names are mandatory and must contain a value') . '</small></p><br/>' .
+      '<p>' . t('All rows with a submission id (SID) will be updated. Those without a submission id will be inserted.') . '<br/>' .
+      t('All rows without submitted time will be inserted with current system time.') .
+      '</p><br/>' .
+      theme('item_list', $instructions_items) . '</div>',
+  );
+
+  $form['upload'] = array(
+    '#type' => 'file',
+    '#title' => t('Delimited data file'),
+    '#description' => t('Choose the data file containing the data you want uploaded. All rows with a submission id (SID) will be updated. Those without a submission id will be inserted.')
+  );
+
+  $form['delimiter'] = array(
+    '#type' => 'select',
+    '#title' => t('File Delimiter'),
+    '#default_value' => '\t',
+    '#options' => _webform_import_delimiter_options(),
+    '#description' => t('Delimiter for file being uploaded.'),
+  );
+
+  $form['field_keys'] = array(
+    '#type' => 'select',
+    '#title' => t('Column header contains'),
+    '#default_value' => 'name',
+    '#options' => _webform_import_field_key_options(),
+    '#description' => t('What to use for the column key. (You probably want to choose form key if you have multiple fields with the same name.)'),
+  );
+
+  $form['buttons'] = array(
+    '#tree' => FALSE,
+    '#weight' => 1000,
+  );
+
+  // Add the submit button.
+  $form['buttons']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => empty($node->webform['submit_text']) ? t('Submit') : $node->webform['submit_text'],
+    '#weight' => 10,
+  );
+  return $form;
+}
+
+/**
+ * Form submission function to parse the delimited file and add to the database.
+ *
+ * @param $form
+ *   The current form.
+ * @param $form_state
+ *   The current form values of a submission.
+ *
+ * @see webform_import_form()
+ */
+function webform_import_form_submit($form, $form_state) {
+
+  // Define your limits for the submission here.
+  $limits = array(
+    'extensions' => 'csv tsv txt'
+  );
+  $validators = array(
+    'file_validate_extensions' => array($limits['extensions'])
+  );
+
+  if ($file = file_save_upload('upload', $validators)) {
+    _webform_import_import($form, $form_state, $file);
+  }
+  else {
+    form_set_error('upload', t('Uploaded file could not be saved.'));
+    watchdog('webform-import', 'File save error. Could not save file %file to path %path.!details', array('%file' => $file->filename, '%path' => $file->filepath, '!results' => '<br />\n<pre>' . htmlentities(print_r($form_state['values'], TRUE)) . '</pre>'), WATCHDOG_ERROR);
+  }
+}
+
+/**
+ * Function to parse the delimited file and add submissions to the database.
+ *
+ * @param $form
+ *   The current form.
+ * @param $form_state
+ *   The current form values of a submission.
+ *
+ * @see webform_import_form()
+ */
+function _webform_import_import($form, $form_state, $file) {
+  global $user;
+
+  // This makes php auto-detect mac line endings.
+  ini_set('auto_detect_line_endings', TRUE);
+
+  if (($handle = fopen($file->destination, 'r')) === FALSE) {
+    form_set_error('upload', t('File could not be opened for reading.'));
+    watchdog('webform-import', 'File read error. Could not read file %file at path %path.!details', array('%file' => $file->filename, '%path' => $file->filepath, '!results' => '<br />\n<pre>' . htmlentities(print_r($form_state['values'], TRUE)) . '</pre>'), WATCHDOG_ERROR);
+    return;
+  }
+
+  module_load_include('inc', 'webform', 'includes/webform.submissions');
+
+  $sids = array();
+  $cids = array();
+  $fields = array();
+
+  $webform = node_load(intval($form_state['values']['nid']));
+  $delimiter = $form_state['values']['delimiter'];
+  $delimiter = $delimiter == '\t' ? '\t' : $delimiter;
+  $field_key = $form_state['values']['field_keys'];
+
+  $keys = array();
+  $keys[$field_key === 'name' ? 'Submission ID' : 'SID'] = array( 'form_key' => 'SID');
+  foreach ($webform->webform['components'] as $cid => $component) {
+    $component['cid'] = $cid;
+    $keys[trim($component[$field_key])] = $component;
+  }
+
+  $data = array();
+  $num = 0;
+  $arraylen = 0;
+  $c = -1;
+
+
+  while (!feof($handle)) {
+    $c++;
+    $data = fgetcsv($handle, 0, $delimiter);
+
+    // Ignore empty rows.
+    if ($data[0] === NULL) {
+      continue;
+    }
+
+    if ($c == 0 ) { // This is the header row.
+      $arraylen = count($data);
+      foreach ($data as $k => &$v) {
+        $v = _webform_import_csvfieldtrim($v);
+        // Identify the Key of Submitted Time
+        if($v == 'Submission DateTime' || $v == 'submitted_datetime'){
+          $submitted_key = $k;
+          continue;
+        }
+        if (!$keys[$v] && $v) {
+          drupal_set_message(t('Can not find column @k in components list, skipping.', array('@k' => $v)), 'warning');
+        }
+        elseif (isset($keys[$v]['cid'])) {
+          $cids[$k] = $keys[$v]['cid'];
+        }
+      }
+      $fields = array_flip($data);
+
+      foreach ($keys as $k => $component) {
+        if (!strcmp($k, 'name')) {
+          if ($component['mandatory'] && !isset($fields[$k])) {
+            form_set_error('upload', t('Column @k is required but could not be found in this file. Alter the file or the webform and try again.', array('@k' => $k)));
+          }
+        }
+      }
+
+      $fields = $data;
+      continue 1;
+    }
+
+    $num = count($data);
+    $sid = NULL;
+    if ($arraylen == $num) {
+      $sub_array = array();
+      foreach ($data as $k => &$v) {
+
+        $v = _webform_import_csvfieldtrim($v);
+        if ($v == '') {
+          // Checking mandatory field for a value.
+          if (array_key_exists('mandatory',$keys[$fields[$k]]) && $keys[$fields[$k]]['mandatory']) {
+            drupal_set_message(t('Required field has no value at row,col: @r,@c.  Skipping this row!', array('@r' => $c, '@c' => $k)), 'warning');
+            continue 2;
+          }
+          else {
+            continue 1;  // Skip field if empty.
+          }
+        }
+
+        // Checking SID input security.
+        if ($keys[$fields[$k]]['form_key'] === 'SID') {
+          if (!is_numeric($v)) {
+            drupal_set_message(t('Invalid Submission ID at row,col: @r,@c.  Skipping this row!', array('@r' => $c, '@c' => $k)), 'warning');
+            continue 2;
+          }
+          else {
+            $sid = intval($v); // Valid input security (integer values only).
+          }
+        }
+        // It's a real component, parse and add to $sub_array.
+        elseif (($cid = isset($cids[$k]) ? $cids[$k]:FALSE) !== FALSE) {
+          $type = $keys[$fields[$k]]['type'];
+          // Date and time components.
+          if ($type === 'date' || $type === 'time') {
+            $timezone = date_default_timezone();
+            $date = new DateTime($v, new DateTimeZone($timezone));
+            $timestamp = $dtime->format('U');
+            if ($time = $timestamp) {
+              $v = $type === 'date' ? date('Y-m-d', $time) : date('H:i:s', $time);
+            }
+            else {
+              drupal_set_message(t('Invalid datetime value at row,col: @r,@c. Skipping this row!', array('@r' => $c, '@c' => $k)), 'warning');
+              continue 2;
+            }
+          }
+          // Grid and multi-select components.
+          elseif ($type === 'grid' || ($type === 'select' && $keys[$fields[$k]]['extra']['multiple'] == 1)) {
+            // Explode the value into an array and associate it back to the value.
+            $v = explode(',', $v);
+          }
+          $sub_array[$cid] = $v;
+        }
+        $submitted = ($k == $submitted_key) ? $v : time();
+      }
+
+      $submission = (object) array(
+        'nid' => $webform->nid,
+        'uid' => $user->uid,
+        'submitted' => $submitted,
+        'remote_addr' => ip_address(),
+        'serial' => _webform_submission_serial_next_value($webform->nid),
+        'is_draft' => 0,
+        'data' => webform_submission_data($webform, $sub_array),
+      );
+
+      // Determine if INSERT or UPDATE based on inclusion of SID.
+      if ($sid != NULL) {
+        $submission->sid = $sid;
+        $sids[] = webform_submission_update($webform, $submission);
+      }
+      else {
+        $sids[] = webform_submission_insert($webform, $submission);
+      }
+    }
+    else{
+      drupal_set_message(t('Row @c is malformed and will need to be fixed and resubmitted.', array('@c' => ($c+1))), 'warning');
+    }
+  }
+  fclose($handle);
+
+  if (!file_delete($file)) {
+    watchdog('webform-import', 'File could not be deleted (cleanup process). File: %file at path %path . !details', array('%file' => $file->filename, '%path' => $file->destination, '!results' => '<br />\n<pre>' . htmlentities(print_r($form_state['values'], TRUE)) . '</pre>'), WATCHDOG_ERROR);
+  }
+
+  drupal_set_message(t('We uploaded @count submissions', array( '@count' => count($sids))));
+  watchdog('webform-import', 'Submission file uploaded to %title.', array('%title' => check_plain($webform->title), '!results' => '<br />\n<pre>' . htmlentities(print_r($form_state['values'], TRUE)) . '</pre>'));
+
+}
+
+/**
+ * Returns the next serial number for a given node and optionally increment the serial number.
+ *
+ * @param int $nid
+ *   The nid of the node.
+ * @paran bool $increment
+ *   Whether to increment the serial number.
+ *
+ * @return int|null
+ *   The next value of the serial number or NULL if no form at this nid.
+ */
+function _webform_service_submission_serial_next_value($nid, $do_increment = TRUE) {
+  // Use a transaction with SELECT ... FOR UPDATE to lock the row between
+  // the SELECT and the UPDATE, ensuring that multiple Webform submissions
+  // at the same time do not have duplicate numbers.
+  // Do not lock unless incrementing.
+  if ($do_increment) {
+    db_transaction();
+  }
+
+  // Get the next_serial value.
+  $next_serial = db_select('webform', 'w')
+    // FOR UPDATE does not lock outside of a transaction.
+    ->forUpdate()
+    ->fields('w', array('next_serial'))
+    ->condition('nid', $nid)
+    ->execute()
+    ->fetchField();
+
+  // Otherwise, no number was found, no form at this nid, return the NULL.
+  if ($next_serial && $do_increment) {
+    // Increment the next_value.
+    $increment_amount = 1;
+    db_update('webform')
+      ->fields(array('next_serial' => $next_serial + $increment_amount))
+      ->condition('nid', $nid)
+      ->execute();
+  }
+
+  return $next_serial;
+}
+
+/**
+ * Returns a list of value delimiters we can use.
+ *
+ * @return
+ *   An array of key/value pairs for form options list.
+ */
+function _webform_import_delimiter_options() {
+  return array(
+    ',' => t('Comma (,)'),
+    '\t' => t('Tab (\t)'),
+    ';' => t('Semicolon (;)'),
+    ':' => t('Colon (:)'),
+    '|' => t('Pipe (|)'),
+    '.' => t('Period (.)'),
+    ' ' => t('Space ( )'),
+  );
+}
+
+/**
+ * Returns a list of field header types we can use.
+ *
+ * @return
+ *   An array of key/value pairs for form options list.
+ */
+function _webform_import_field_key_options() {
+  return array(
+    'name' => t('Field Names'),
+    'form_key' => t('Field Form Keys'),
+  );
+}
+
+/**
+ * Returns a trimmed field value
+ *
+ * @param $value
+ *   Field value to be trimmed.
+ * @return
+ *   Trimmed field value.
+ */
+function _webform_import_csvfieldtrim($value) {
+  $value = trim($value);
+  // Strip off the beginning and ending quotes if necessary.
+  $value = preg_replace('/^".*"$/', '', $value);
+  // Remove control characters. Some editors add invalid EOL chars.
+  // fgetcsv does not handle unicode characters therefore we replace them
+  // manually. See http://bugs.php.net/bug.php?id=31632.
+  $value = str_replace('\x00..\x1F\xfe\xff', '', $value);
+  return $value;
+}

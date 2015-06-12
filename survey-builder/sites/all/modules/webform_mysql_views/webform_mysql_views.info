@@ -1,0 +1,12 @@
+name = Webform MySQL Views
+description = Create flattened MySQL views from Webform submission data
+package = Webform
+core = 7.x
+dependencies[] = webform
+
+; Information added by drupal.org packaging script on 2012-04-15
+version = "7.x-1.0"
+core = "7.x"
+project = "webform_mysql_views"
+datestamp = "1334481106"
+

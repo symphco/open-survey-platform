@@ -1,0 +1,344 @@
+<?php
+
+/**
+ * @file
+ * This module adds a list of checkboxes for each Drupal role to the webform
+ * component edit form. It then only allows those roles to view that webform
+ * component when the webform is viewed.
+ *
+ * @author Daniel Imhoff
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function webform_component_roles_permission() {
+  return array(
+    'restrict webform components' => array(
+      'title' => t('Restrict webform components'),
+      'description' => t('Restrict webform component use to certain roles.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function webform_component_roles_form_alter(&$form, &$form_state, $form_id) {
+  $node =& $form['#node'];
+
+  if (empty($form['submitted']) || empty($node->webform['components']) || !isset($node) || !isset($node->type) || !in_array($node->type, webform_variable_get('webform_node_types'))) {
+    return;
+  }
+
+  global $user;
+
+  $component_roles = _webform_component_roles_webform_component_roles($node->nid);
+
+  $components = array();
+
+  foreach ($node->webform['components'] as $cid => $component) {
+    if (is_array($component)) {
+      $components[$cid] = array(
+        'form_key' => $component['form_key'],
+        'roles' => isset($component_roles[$cid]) ? $component_roles[$cid] : $node->webform['roles'],
+      );
+    }
+  }
+
+  $elements = array();
+  _webform_component_roles_flatten_components($form['submitted'], $elements);
+
+  foreach ($components as $cid => $component) {
+    $enabled = TRUE;
+
+    $allowed_roles = array();
+
+    foreach ($component['roles'] as $rid) {
+      $allowed_roles[$rid] = isset($user->roles[$rid]) ? TRUE : FALSE;
+    }
+
+    if (array_search(TRUE, $allowed_roles) === FALSE && $user->uid != 1) {
+      $enabled = FALSE;
+    }
+
+    if (!$enabled) {
+      $elements[$component['form_key']]['#access'] = FALSE;
+      $elements[$component['form_key']]['#required'] = FALSE;
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for webform_component_edit_form().
+ */
+function webform_component_roles_form_webform_component_edit_form_alter(&$form, &$form_state, $form_id) {
+  if (!user_access('restrict webform components')) {
+    return;
+  }
+
+  $nid =& $form['nid']['#value'];
+  $cid =& $form['cid']['#value'];
+
+  $defaults = _webform_component_roles_defaults();
+
+  if (in_array($form['type']['#value'], $defaults['blacklist'])) {
+    return;
+  }
+
+  if (isset($form['cid']['#value'])) {
+    $component_roles = _webform_component_roles_component_roles($nid, $cid);
+  }
+
+  if (empty($component_roles)) {
+    $component_roles = _webform_component_roles_webform_roles($nid);
+  }
+
+  $form['role_control'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Component Access'),
+    '#description' => t('These permissions affect which roles can use this component. Only selected roles will be able to see and use this component.'),
+    '#weight' => 6,
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+
+  $user_roles = user_roles();
+
+  foreach ($user_roles as $rid => $rname) {
+    if ($rid == DRUPAL_ANONYMOUS_RID || $rid == DRUPAL_AUTHENTICATED_RID) {
+      continue;
+    }
+
+    $user_roles[$rid] = webform_tt("user:rid:$rid:name", $rname);
+  }
+
+  $form['role_control']['roles'] = array(
+    '#default_value' => $component_roles,
+    '#options' => $user_roles,
+    '#type' => 'checkboxes',
+    '#title' => t('Roles that can view this component'),
+    '#description' => t('The %authenticated role applies to any user signed into the site, regardless of other assigned roles.', array('%authenticated' => $user_roles[2])),
+  );
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter() for webform_configure_form().
+ */
+function webform_component_roles_form_webform_configure_form_alter(&$form, &$form_state) {
+  $form['#submit'][] = 'webform_component_roles_form_webform_configure_form_submit';
+  $form_state['storage']['roles_old'] = _webform_component_roles_webform_roles($form['#node']->nid);
+}
+
+/**
+ * Additional submit handler for webform_configure_form().
+ */
+function webform_component_roles_form_webform_configure_form_submit(&$form, &$form_state) {
+  $webform_roles = array_keys(array_filter($form_state['values']['roles']));
+
+  if ($webform_roles != $form_state['storage']['roles_old']) {
+    foreach (_webform_component_roles_webform_component_roles($form['#node']->nid) as $cid => $rids) {
+      if ($form_state['storage']['roles_old'] == $rids) {
+        _webform_component_roles_delete_component_roles($form['#node']->nid, $cid);
+        _webform_component_roles_insert_component_roles($form['#node']->nid, $cid, $webform_roles);
+      }
+    }
+
+    drupal_set_message(t('Webform Component Roles has detected a change in the roles of this Webform\'s Submission Access and has automatically updated each of your unchanged components with the new roles. You should review each component\'s access roles to make sure they are configured correctly.'), 'warning');
+  }
+}
+
+/**
+ * Implements hook_webform_component_insert().
+ */
+function webform_component_roles_webform_component_insert($component) {
+  if (!user_access('restrict webform components')) {
+    return;
+  }
+
+  _webform_component_roles_insert_component_roles($component['nid'], $component['cid'], _webform_component_roles_get_role_array($component));
+}
+
+/**
+ * Implements hook_webform_component_update().
+ */
+function webform_component_roles_webform_component_update($component) {
+  if (!user_access('restrict webform components')) {
+    return;
+  }
+
+  if (isset($component['role_control'])) {
+    _webform_component_roles_delete_component_roles($component['nid'], $component['cid']);
+    _webform_component_roles_insert_component_roles($component['nid'], $component['cid'], _webform_component_roles_get_role_array($component));
+  }
+}
+
+/**
+ * Implements hook_webform_component_delete().
+ */
+function webform_component_roles_webform_component_delete($component) {
+  if (!user_access('restrict webform components')) {
+    return;
+  }
+
+  _webform_component_roles_delete_component_roles($component['nid'], $component['cid']);
+}
+
+/**
+ * Default settings for Webform Component Roles.
+ *
+ * @return array
+ *   An array of defaults.
+ */
+function _webform_component_roles_defaults() {
+  $defaults = array(
+    'blacklist' => array('pagebreak', 'hidden'),
+  );
+
+  drupal_alter('webform_component_roles_defaults', $defaults);
+
+  return $defaults;
+}
+
+/**
+ * Return role ID's that were selected in the form from a component.
+ *
+ * @return array
+ *   The array of role ID's.
+ */
+function _webform_component_roles_get_role_array($component) {
+  $rids = array();
+
+  if (isset($component['role_control'])) {
+    foreach ($component['role_control']['roles'] as $key => $value) {
+      if ($value) {
+        $rids[] = $key;
+      }
+    }
+  }
+
+  return $rids;
+}
+
+/**
+ * Insert roles that can view this component.
+ *
+ * @param int $nid
+ *   The node ID that the webform belongs.
+ * @param int $cid
+ *   The component ID within that webform.
+ * @param array $rids
+ *   The array of role ID's.
+ */
+function _webform_component_roles_insert_component_roles($nid, $cid, $rids) {
+  $query = db_insert('webform_component_roles')
+    ->fields(array('nid', 'cid', 'rid'));
+
+  foreach ($rids as $rid) {
+    $query->values(array(
+      'nid' => $nid,
+      'cid' => $cid,
+      'rid' => $rid,
+    ));
+  }
+
+  return $query->execute();
+}
+
+/**
+ * Remove roles from the database for this component.
+ *
+ * @param int $nid
+ *   The node ID that the webform belongs.
+ * @param int $cid
+ *   The component ID within that webform.
+ */
+function _webform_component_roles_delete_component_roles($nid, $cid) {
+  return db_delete('webform_component_roles')
+    ->condition('nid', $nid)
+    ->condition('cid', $cid)
+    ->execute();
+}
+
+/**
+ * Fetch the roles of a webform.
+ *
+ * @param int $nid
+ *   The node ID that the webform belongs.
+ * @return array
+ *   An array of role ID's.
+ */
+function _webform_component_roles_webform_roles($nid) {
+  return db_select('webform_roles')
+    ->fields('webform_roles', array('rid'))
+    ->condition('nid', $nid)
+    ->execute()
+    ->fetchCol();
+}
+
+/**
+ * Fetch the components and their roles by a webform node ID.
+ *
+ * @param int $nid
+ *   The node ID that the webform belongs.
+ *
+ * @return array
+ *   An array with component ID's as keys and an array of roles as values.
+ */
+function _webform_component_roles_webform_component_roles($nid) {
+  $components = array();
+
+  $results = db_select('webform_component_roles', 'w', array('fetch' => PDO::FETCH_ASSOC))
+    ->condition('w.nid', $nid)
+    ->fields('w')
+    ->execute()
+    ->fetchAll();
+
+  foreach ($results as $key => $row) {
+    if (!isset($components[$row['cid']])) {
+      $components[$row['cid']] = array();
+    }
+
+    $components[$row['cid']][] = $row['rid'];
+  }
+
+  return $components;
+}
+
+/**
+ * Fetch the roles of a component by the webform node ID and component ID.
+ *
+ * @param int $nid
+ *   The node ID that the webform belongs.
+ * @param int $cid
+ *   The component ID within that webform.
+ *
+ * @return array
+ *   An array of role ID's.
+ */
+function _webform_component_roles_component_roles($nid, $cid) {
+  return db_select('webform_component_roles', 'w', array('fetch' => PDO::FETCH_ASSOC))
+    ->condition('w.nid', $nid)
+    ->condition('w.cid', $cid)
+    ->fields('w')
+    ->execute()
+    ->fetchCol(2);
+}
+
+/**
+ * Flattens the webform component tree into an associative array keyed by the
+ * form key of the component.
+ *
+ * @param array $element
+ *   Usually $form['submitted']
+ * @param array $elements
+ *   The elements array, passed by reference to add the elements to.
+ */
+function _webform_component_roles_flatten_components(&$element, &$elements) {
+  if (is_array($element)) {
+    foreach (element_children($element) as $element_key) {
+      $elements[$element_key] =& $element[$element_key];
+      _webform_component_roles_flatten_components($element[$element_key], $elements);
+    }
+  }
+}

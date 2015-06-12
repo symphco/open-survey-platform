@@ -1,0 +1,4 @@
+#!/bin/sh
+
+drush cron
+

@@ -1,0 +1,124 @@
+<?php
+
+/**
+ * Implementation of hook_uuid_sync
+ */
+function webform_submission_uuid_uuid_sync() {
+
+  // Update the webform_submissions table with missing UUID's
+  _uuid_sync_table('webform_submissions', 'sid', 'uuid');
+}
+
+/**
+ * Implementation of hook_webform_submission_load
+ */
+function webform_submission_uuid_webform_submission_load(&$submissions) {
+
+  // Adds the UUID to each submission that was loaded.
+  $sids = array_keys($submissions);
+
+  // Get the webform submissions.
+  $result = db_select('webform_submissions', 's')
+              ->fields('s')
+              ->condition('s.sid', $sids, 'IN')
+              ->execute();
+
+  // Make sure we have a result.
+  if (!empty($result)) {
+    foreach ($result as $row) {
+      if (!empty($submissions[$row->sid])) {
+        $submissions[$row->sid]->uuid = $row->uuid;
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of hook_webform_submission_insert
+ */
+function webform_submission_uuid_webform_submission_insert($webform, $submission) {
+
+  // Make sure a submission was added.
+  if (!empty($submission->sid)) {
+
+    // Update the webform submission that was inserted with a UUID.
+    db_update('webform_submissions')
+      ->fields(array('uuid' => uuid_generate()))
+      ->condition('sid', $submission->sid)
+      ->execute();
+  }
+}
+
+/**
+ * Get's the webform submission entry provided a uuid.
+ *
+ * @param type $uuid
+ * @param type $reset
+ * @return type
+ */
+function webform_submission_uuid_entry($uuid, $reset = FALSE) {
+
+  // Get the submissions from static cache.
+  $submissions = &drupal_static(__FUNCTION__);
+
+  // See if we need to reset or if it is statically cached.
+  if ($reset || empty($submissions[$uuid])) {
+
+    // Get the webform submission from the uuid.
+    $result = db_select('webform_submissions', 's')
+                ->fields('s', array('sid', 'nid'))
+                ->condition('s.uuid', $uuid)
+                ->execute();
+
+    // Make sure we have a result.
+    if (!empty($result)) {
+
+      // Fetch the database entry.
+      $result = $result->fetchObject();
+
+      // Make sure it has a submission and node ID.
+      if ($result->sid && $result->nid) {
+
+        // Add the result to the static cache.
+        $submissions[$uuid] = $result;
+      }
+    }
+  }
+
+  // Return the submission.
+  return !empty($submissions[$uuid]) ? $submissions[$uuid] : array();
+}
+
+/**
+ * Loads a webform submission provided the UUID.
+ */
+function webform_submission_uuid_submission($uuid, $reset = FALSE) {
+
+  // Get the submission entry.
+  if ($submission = webform_submission_uuid_entry($uuid, $reset)) {
+
+    // Translate this to a webform submission.
+    module_load_include('inc', 'webform', 'includes/webform.submissions');
+    $submission = webform_get_submission($submission->nid, $submission->sid, $reset);
+  }
+
+  // Return the submission.
+  return $submission;
+}
+
+/**
+ * Loads a webform provided the UUID of the submission.
+ */
+function webform_submission_uuid_webform($uuid, $reset = FALSE) {
+  $webform = null;
+
+  // Get the submission entry.
+  if ($submission = webform_submission_uuid_entry($uuid, $reset)) {
+
+    // Translate this to a webform node.
+    $webform = node_load($submission->nid, NULL, $reset);
+  }
+
+  // Return the webform node.
+  return $webform;
+}

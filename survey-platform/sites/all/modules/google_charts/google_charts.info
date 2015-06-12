@@ -1,0 +1,16 @@
+name = Google Chart Tools for Drupal
+description = Provides a developer API for rendering charts via the Google Chart Tools API.
+core = 7.x
+
+files[] = includes/google_charts.chart.inc
+files[] = includes/google_charts.control.inc
+files[] = includes/google_charts.dashboard.inc
+files[] = includes/google_charts.data.inc
+files[] = includes/google_charts.options.inc
+
+; Information added by drupal.org packaging script on 2013-09-30
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "google_charts"
+datestamp = "1380581221"
+

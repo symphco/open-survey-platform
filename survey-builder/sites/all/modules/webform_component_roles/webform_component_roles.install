@@ -1,0 +1,42 @@
+<?php
+
+/**
+ * @file
+ * Webform Component Roles module install/schema hooks.
+ *
+ * @author Daniel Imhoff
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function webform_component_roles_schema() {
+  $schema = array();
+
+  $schema['webform_component_roles'] = array(
+    'description' => 'Table for storing the roles which can use webform components.',
+    'fields' => array(
+      'nid' => array(
+        'description' => 'The node identifier of a webform.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'cid' => array(
+        'description' => 'The identifier for this component within this node, starts at 0 for each node.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'rid' => array(
+        'description' => 'The role identifier.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('nid', 'cid', 'rid'),
+  );
+
+  return $schema;
+}

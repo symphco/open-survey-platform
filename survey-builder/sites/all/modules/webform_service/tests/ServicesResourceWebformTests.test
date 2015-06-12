@@ -1,0 +1,468 @@
+<?php
+
+/**
+ * Run test cases for the endpoint with no authentication turned on.
+ *
+ */
+class ServicesResourceWebformTests extends ServicesWebTestCase {
+
+  // Class variables
+  protected $privilegedUser = NULL ;
+  // Endpoint details.
+  protected $endpoint = NULL;
+  // The default webform components.
+  protected $form_components = array(
+    1 => array(
+      'form_key' => 'first_name',
+      'type' => 'textfield',
+      'name' => 'First Name',
+    ),
+    2 => array(
+      'form_key' => 'last_name',
+      'type' => 'textfield',
+      'name' => 'Last Name',
+    ),
+    3 => array(
+      'form_key' => 'email',
+      'type' => 'email',
+      'name' => 'Email'
+    )
+  );
+
+  /**
+   * Implementation of setUp().
+   */
+  public function setUp() {
+    parent::setUp(
+      'webform',
+      'webform_service',
+      'uuid'
+    );
+
+    $edit = $this->populateEndpointFAPI() ;
+    $this->endpoint = new stdClass;
+    $this->endpoint->disabled = FALSE; /* Edit this to true to make a default endpoint disabled initially */
+    $this->endpoint->api_version = 3;
+    $this->endpoint->name = $edit['name'];
+    $this->endpoint->server = $edit['server'];
+    $this->endpoint->path = $edit['path'];
+    $this->endpoint->authentication = array(
+      'services' => 'services',
+    );
+    $this->endpoint->server_settings = array(
+      'formatters' => array(
+        'json' => TRUE,
+        'bencode' => TRUE,
+        'rss' => TRUE,
+        'plist' => TRUE,
+        'xmlplist' => TRUE,
+        'php' => TRUE,
+        'yaml' => TRUE,
+        'jsonp' => FALSE,
+        'xml' => FALSE,
+      ),
+      'parsers' => array(
+        'application/x-yaml' => TRUE,
+        'application/json' => TRUE,
+        'application/vnd.php.serialized' => TRUE,
+        'application/plist' => TRUE,
+        'application/plist+xml' => TRUE,
+        'application/x-www-form-urlencoded' => TRUE,
+        'multipart/form-data' => TRUE,
+      ),
+    );
+    $this->endpoint->resources = array(
+      'submission' => array(
+        'operations' => array(
+          'create' => array(
+            'enabled' => 1,
+          ),
+          'retrieve' => array(
+            'enabled' => 1,
+          ),
+          'update' => array(
+            'enabled' => 1,
+          ),
+          'retrieve' => array(
+            'enabled' => 1,
+          ),
+          'delete' => array(
+            'enabled' => 1,
+          ),
+        ),
+      ),
+    );
+
+    // Get all the webform types.
+    $types = webform_variable_get('webform_node_types');
+
+    // Iterate through the webform types.
+    foreach ($types as $type) {
+      $this->endpoint->resources[$type] = array(
+        'operations' => array(
+          'create' => array(
+            'enabled' => 1,
+          ),
+          'retrieve' => array(
+            'enabled' => 1,
+          ),
+          'update' => array(
+            'enabled' => 1,
+          ),
+          'delete' => array(
+            'enabled' => 1,
+          ),
+          'index' => array(
+            'enabled' => 1,
+          ),
+        ),
+        'relationships' => array(
+          'submissions' => array(
+            'enabled' => 1,
+          ),
+        ),
+      );
+    }
+
+    $this->endpoint->resources['submission'] = array(
+      'operations' => array(
+        'create' => array(
+          'enabled' => 1,
+        ),
+        'retrieve' => array(
+          'enabled' => 1,
+        ),
+        'update' => array(
+          'enabled' => 1,
+        ),
+        'delete' => array(
+          'enabled' => 1,
+        ),
+      ),
+    );
+
+    $this->endpoint->debug = 1;
+    $this->endpoint->export_type = FALSE;
+    services_endpoint_save($this->endpoint);
+    $endpoint = services_endpoint_load($this->endpoint->name);
+    $this->assertTrue($endpoint->name == $edit['name'], t('Endpoint successfully created'));
+  }
+
+  /**
+   * Implementation of getInfo().
+   */
+  public static function getInfo() {
+    return array(
+      'name' => t('Webform & Submissions'),
+      'description' => t('Test the webform resource and submission methods and actions.'),
+      'group' => t('Services'),
+    );
+  }
+
+  /**
+   * testing node_resource Index
+   */
+  public function testNewEndpointWebformIndex() {
+    $types = webform_variable_get('webform_node_types');
+
+    // Create and log in our privileged user.
+    $this->privilegedUser = $this->drupalCreateUser(array(
+      'administer services',
+      'perform unlimited index queries',
+    ));
+    $this->drupalLogin($this->privilegedUser);
+
+    // Create a set of nodes. The node resource returns 20 returns at a time,
+    // so we create two pages and a half worth.
+    $nodes = array();
+    $count = 50;
+    for ($i = 0; $i < $count; $i++) {
+      $node = $this->drupalCreateNode(array('type' => $types[0]));
+      $nodes[$node->uuid] = $node;
+    }
+
+    // Get the content.
+    $page_count = ceil(count($nodes) / 20);
+    $retrieved_nodes = array();
+    for ($page = 0; $page < $page_count; $page++) {
+      $responseArray = $this->servicesGet($this->endpoint->path . '/' . $types[0], array('page' => $page));
+      $this->assertTrue(count($responseArray['body']) <= 20, t('Correct number of items returned'));
+
+      // Store the returned node IDs.
+      foreach ($responseArray['body'] as $node) {
+        if (isset($retrieved_nodes[$node->uuid])) {
+          $this->fail(t('Duplicate node @uuid returned.', array('@uuid' => $node->uuid)));
+        }
+        $retrieved_nodes[$node->uuid] = TRUE;
+
+        $this->assertTrue($nodes[$node->uuid]->title == $node->title, t('Successfully received Node info'), 'NodeResource: Index');
+      }
+    }
+
+    // We should have got all the nodes.
+    $expected_nids = array_keys($nodes);
+    sort($expected_nids);
+    $retrieved_nids = array_keys($retrieved_nodes);
+    sort($retrieved_nids);
+    $this->assertEqual($expected_nids, $retrieved_nids, t('Retrieved all nodes'));
+
+    // The n+1 page should be empty.
+    $responseArray = $this->servicesGet($this->endpoint->path . '/' . $types[0], array('page' => $page_count + 1));
+    $this->assertEqual(count($responseArray['body']), 0, t('The n+1 page is empty'));
+
+    // Adjust the pager size.
+    $responseArray = $this->servicesGet($this->endpoint->path . '/' . $types[0], array('pagesize' => 40));
+    $this->assertTrue(count($responseArray['body']) == 40, t('Correct number of items returned'));
+
+    // Swap to user that can only use the default pager size.
+    $this->lessPrivilegedUser = $this->drupalCreateUser(array(
+      'administer services',
+    ));
+    $this->drupalLogin($this->lessPrivilegedUser);
+    $responseArray = $this->servicesGet($this->endpoint->path . '/' . $types[0], array('pagesize' => 40));
+    $this->assertTrue(count($responseArray['body']) == 20, t('Correct number of items returned'));
+  }
+
+  /**
+   * testing node_resource Get
+   */
+  public function testNewEndpointWebformGet() {
+    $types = webform_variable_get('webform_node_types');
+
+    // Create and log in our privileged user.
+    $this->privilegedUser = $this->drupalCreateUser(array(
+      'administer services',
+    ));
+    $this->drupalLogin($this->privilegedUser);
+    $node = $this->drupalCreateNode(array('type' => $types[0]));
+
+    // Get the endpoint.
+    $endpoint = $this->endpoint->path . '/' . $types[0];
+
+    $responseArray = $this->servicesGet($endpoint . '/' . $node->uuid);
+    $this->assertTrue($node->title == $responseArray['body']->title, t('Successfully received Webform'), 'Webform: Retrieve');
+    //Verify node not found.
+    unset($node);
+    $responseArray = $this->servicesGet($endpoint . '/1234');
+    $this->assertTrue($responseArray['code'] == '404', t('Successfully was rejected to non existent webform'), 'Webform: Retrieve');
+  }
+
+  /**
+   * Create a new webform.
+   *
+   * @param type $components
+   * @return type
+   */
+  public function createForm($components = array()) {
+    $response = array();
+    if ($this->privilegedUser) {
+      $types = webform_variable_get('webform_node_types');
+
+      // Get the endpoint.
+      $endpoint = $this->endpoint->path . '/' . $types[0];
+      $responseArray = $this->servicesPost($endpoint, array(
+        'title' => 'testing',
+        'body' => array(LANGUAGE_NONE => array(array('value' => 'testing body'))),
+        'name' => $this->privilegedUser->name,
+        'language' => LANGUAGE_NONE,
+        'webform' => array(
+          'components' => $components
+        )
+      ));
+      $response = $responseArray['body'];
+    }
+    return $response;
+  }
+
+  /**
+   * Testing webform Create.
+   */
+  public function testEndpointWebformCreate() {
+
+    // Create and log in our privileged user.
+    $this->privilegedUser = $this->drupalCreateUser(array(
+      'administer services',
+      'bypass node access',
+    ));
+    $this->drupalLogin($this->privilegedUser);
+
+    $components = $this->form_components;
+
+    // Create the form.
+    $form = $this->createForm($components);
+
+    $this->assertTrue(isset($form->uuid), t('Webform was successfully created'), 'Webform: Create');
+    $webform = webform_service_resource_load($form->uuid);
+    $this->assertTrue($webform->title = 'testing', t('Title was the same'), 'Webform: Create');
+    $this->assertTrue($webform->body = 'testing body', t('Body was the same'), 'Webform: Create');
+
+    // Now make sure the webform was created.
+    $this->assertTrue(!empty($webform->webform), t('Webform created.'), 'Webform: Create');
+    $this->assertTrue(!empty($webform->webform['components']), t('Components created.'), 'Webform: Create');
+    $this->assertTrue(count($webform->webform['components']) === 3, t('Number of components created.'), 'Webform: Create');
+    foreach ($components as $cid => $component) {
+      $this->assertTrue(!empty($webform->webform['components'][$cid]), 'Component was created', 'Webform: Create');
+      $this->assertTrue($webform->webform['components'][$cid]['form_key'] == $component['form_key'], t('Components match.'), 'Webform: Create');
+    }
+  }
+
+  /**
+   * Testing webform Update.
+   */
+  public function testEndpointWebformUpdate() {
+    // Create and log in our privileged user.
+    $this->privilegedUser = $this->drupalCreateUser(array(
+      'administer services',
+      'bypass node access',
+    ));
+    $this->drupalLogin($this->privilegedUser);
+
+    // Create the form.
+    $components = $this->form_components;
+    $form = $this->createForm($components);
+    $webform = webform_service_resource_load($form->uuid);
+
+    // Make sure we start with 3 components.
+    $this->assertTrue(count($webform->webform['components']) == 3);
+
+    // Add a new component.
+    $webform->webform['components'][] = array(
+      'form_key' => 'middle_name',
+      'type' => 'textfield',
+      'name' => 'Middle Name',
+    );
+
+    // Get the endpoint.
+    $endpoint = $this->endpoint->path . '/' . $webform->type . '/' . $webform->uuid;
+    $responseArray = $this->servicesPut($endpoint, (array)$webform);
+    $response = $responseArray['body'];
+
+    // Make sure we have 4 comonents now.
+    $this->assertTrue(count($response->webform['components']) == 4);
+    $this->assertTrue(!empty($response->webform['components'][4]['cid']));
+    $this->assertTrue($response->webform['components'][4]['form_key'] == 'middle_name');
+    $this->assertTrue($response->webform['components'][4]['name'] == 'Middle Name');
+    $this->assertTrue($response->webform['components'][4]['type'] == 'textfield');
+
+    // Now edit the name of an existing field.
+    $webform = webform_service_resource_load($form->uuid, TRUE);
+    $webform->webform['components'][2]['name'] = 'Testing';
+    $responseArray = $this->servicesPut($endpoint, (array)$webform);
+    $response = $responseArray['body'];
+
+    // Make sure the name updates.
+    $this->assertTrue($response->webform['components'][2]['name'] == 'Testing');
+  }
+
+  /**
+   * Testing webform Delete.
+   */
+  public function testEndpointWebformDelete() {
+    // Create and log in our privileged user.
+    $this->privilegedUser = $this->drupalCreateUser(array(
+      'administer services',
+      'bypass node access',
+    ));
+    $this->drupalLogin($this->privilegedUser);
+
+    // Create the form.
+    $components = $this->form_components;
+    $form = $this->createForm($components);
+    $webform = webform_service_resource_load($form->uuid);
+    $this->assertTrue(!empty($form->uuid));
+    $this->assertTrue(!empty($webform->uuid));
+
+    // Delete the created webform.
+    $endpoint = $this->endpoint->path . '/' . $webform->type . '/' . $webform->uuid;
+    $this->servicesDelete($endpoint);
+
+    // Now verify it was deleted.
+    $webform = webform_service_resource_load($form->uuid, TRUE);
+    $this->assertTrue(empty($webform));
+  }
+
+  /**
+   * Test creating submissions on a webform.
+   */
+  public function testEndpointSubmission() {
+    // Create and log in our privileged user.
+    $this->privilegedUser = $this->drupalCreateUser(array(
+      'administer services',
+      'bypass node access',
+    ));
+    $this->drupalLogin($this->privilegedUser);
+
+    // Create the form.
+    $components = $this->form_components;
+    $form = $this->createForm($components);
+    $webform = webform_service_resource_load($form->uuid);
+
+    // Create and login a new user.
+    $this->drupalLogin($this->drupalCreateUser(array(
+      'access own webform submissions',
+      'edit own webform submissions',
+      'delete own webform submissions',
+      'access own webform results',
+    )));
+
+    // Set the endpoint...
+    $endpoint = $this->endpoint->path . '/submission';
+
+    $submissions = array();
+
+    // Add 10 submissions.
+    for ($i=0; $i < 10; $i++) {
+      $rand = rand(0, 1000000);
+      $data1 = array('values' => array('first' . $rand));
+      $data2 = array('values' => array('last' . $rand));
+      $data3 = array('values' => array('email' . $rand . '@example.com'));
+      $response = $this->servicesPost($endpoint, array(
+        'webform' => $webform->uuid,
+        'submission' => array('data' => array(
+          1 => $data1,
+          2 => $data2,
+          3 => $data3)
+        )
+      ));
+      $response = $response['body'];
+      $this->assertTrue($response['data'][1]['values'] == $data1['values']);
+      $this->assertTrue($response['data'][2]['values'] == $data2['values']);
+      $this->assertTrue($response['data'][3]['values'] == $data3['values']);
+    }
+
+    // Now get some submissions and update them.
+    $endpoint = $this->endpoint->path . '/webform/' . $webform->uuid . '/submissions';
+    $indexResponse = $this->servicesGet($endpoint);
+    $indexResponse = $indexResponse['body'];
+
+    // Iterate through 3 submissions and update them to make sure they update.
+    for ($index=2; $index < 5; $index++) {
+
+      // Get the resource for this index.
+      $resource = $indexResponse[$index];
+
+      // Set the crud endpoint.
+      $crud = $this->endpoint->path . '/submission/' . $resource['uuid'];
+
+      // The get endpoint.
+      $getResponse = $this->servicesGet($crud);
+      $getResponse = $getResponse['body'];
+      $this->assertTrue($getResponse['sid'] == $resource['sid']);
+
+      // Update the resource.
+      $data1 = array('values' => array('First ' . $index));
+      $data2 = array('values' => array('Last ' . $index));
+      $data3 = array('values' => array('email' . $index . '@email.com'));
+      $resource['data'] = array(
+        1 => $data1,
+        2 => $data2,
+        3 => $data3
+      );
+      $updateResponse = $this->servicesPut($crud, $resource);
+      $updateResponse = $updateResponse['body'];
+      $this->assertTrue($updateResponse['data'][1]['values'] == $data1['values']);
+      $this->assertTrue($updateResponse['data'][2]['values'] == $data2['values']);
+      $this->assertTrue($updateResponse['data'][3]['values'] == $data3['values']);
+    }
+  }
+}

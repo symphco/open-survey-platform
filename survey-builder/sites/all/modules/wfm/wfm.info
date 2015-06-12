@@ -1,0 +1,13 @@
+name = Webform Multiple
+description = Allows multiple entries per component.
+core = 7.x
+package = Webform
+dependencies[] = webform (7.x-4.x)
+stylesheets[all][] = styles.css
+
+; Information added by Drupal.org packaging script on 2014-03-26
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "wfm"
+datestamp = "1395846543"
+

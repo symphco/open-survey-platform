@@ -1,0 +1,154 @@
+<?php
+/**
+ * @file
+ * opened_helper module
+ *
+ * @author
+ * fusionx1
+ */
+
+/**
+ * Implements hook_menu_alter().
+ */
+function opened_helper_menu_alter(&$items) {
+  // Example - disallow access for anonymous to surveys  from custom module
+  $items['surveys']['access callback'] = '_accessCheck';
+}
+
+function _acccessCheck(){
+  global $user;
+  // If user is logged in
+  if ($user->uid) {
+    return TRUE;
+  } else { 
+    // Anonymous
+    return FALSE;
+  }
+}
+
+/**
+ * Implements hook_views_query_alte().
+ */
+function opened_helper_views_query_alter($view, $query) {
+ if ($view->name == 'schools' && $view->current_display == 'page_1') { 
+   if($view->exposed_raw_input['data_5'][1] == 0) {
+     $view->exposed_raw_input['data_5'][1] = 1;
+     unset($view->exposed_raw_input['data_5'][1]);
+   } 
+  if($view->exposed_raw_input['data_5'][2] == 0) {
+     $view->exposed_raw_input['data_5'][2] = 1;
+     unset($view->exposed_raw_input['data_5'][2]);
+   }
+  if($view->exposed_raw_input['data_5']['3'] == 0) {
+     $view->exposed_raw_input['data_5']['3'] = 1;
+     unset($view->exposed_raw_input['data_5'][3]);
+   }
+  }
+}
+
+/**
+ * Implements hook_webform_select_options_info().
+ */
+function opened_helper_webform_select_options_info() {
+  $items = array();
+
+  if (function_exists('_opened_helper_get_photo_nodes')) {
+    $items['photo-nodes'] = array(
+        'title' => t('Photos'),
+        'options callback' => '_opened_helper_get_photo_nodes',
+    );
+  }
+  return $items;
+}
+
+/**
+ * Helper function to get_photo_nodes
+ */
+
+function _opened_helper_get_photo_nodes() {
+  $nodes = array();
+
+  $select = db_query("
+      SELECT nid, title
+      FROM {node}
+      WHERE type = 'webform_photo'
+      ORDER BY title
+    ");
+  foreach ($select as $node) {
+    $nodes[$node->nid] = $node->title;
+  }
+
+  return $nodes;
+
+}
+
+/**
+ * Implements hook_menu().
+ */
+function opened_helper_menu(){
+  $items = array();
+
+  $items['school/%ctools_js/%/photos']= array(
+      'title' => 'Chaos Tools AJAX Demo',
+      'page callback' => '_load_school_photos',
+      'page arguments' => array(1,2),
+      'access arguments' => array('access content'),
+  );
+
+  $items['school/%ctools_js/%/general_photos']= array(
+      'title' => 'Chaos Tools AJAX Demo',
+      'page callback' => '_load_school_general_photos',
+      'page arguments' => array(1,2),
+      'access arguments' => array('access content'),
+  );
+
+
+  return $items;
+}
+
+/**
+ * Helper function to load photos via ajax.
+ */
+function _load_school_photos($js,$nid){   
+  ctools_include('ajax');
+  ctools_include('modal');
+  ctools_add_js('ajax-responder');
+  $html =  views_embed_view('image_gallery','block_1',$nid);
+  $output[] = ctools_modal_command_display("", $html);
+  print ajax_render($output);
+}
+
+/**
+ * Helper function to load general photos via ajax.
+ */
+function _load_school_general_photos($js,$nid){ 
+  ctools_include('ajax');
+  ctools_include('modal');
+  ctools_add_js('ajax-responder');
+  $html =  views_embed_view('image_gallery','block_2',$nid);
+  $output[] = ctools_modal_command_display("", $html);
+  print ajax_render($output);
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function opened_helper_form_alter(&$form, &$form_state, $form_id) {
+ if($form_id == 'webform_component_edit_form') {
+    $form['#submit'][] = 'opened_form_custom_submit';
+  }
+}
+
+/**
+ * Implements hook_submit).
+ */
+function opened_form_custom_submit($form,$form_state) {
+  if(isset($form['nid']['#value'])) {
+    $node = node_load($form['nid']['#value']);
+    $nodeurl = url('node/'. $node->nid);
+    // Clearcache is necessary to set data if there are changes on the form
+    // this will benifit the mobile app
+    cache_clear_all($nodeurl, 'cache_page');
+  }
+}
+?>

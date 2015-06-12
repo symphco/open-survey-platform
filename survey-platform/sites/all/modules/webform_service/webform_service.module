@@ -1,0 +1,190 @@
+<?php
+
+/**
+ * @file
+ *  Link webform functionalities to services module.
+ */
+
+
+/**
+ * Implements hook_services_resources().
+ */
+function webform_service_services_resources() {
+  return array(
+    'webform_submission' => array(
+      'retrieve' => array(
+        'file' => array('type' => 'inc', 'module' => 'webform_service'),
+        'help' => t('Retrieves a webform submission'),
+        'callback' => '_submission_resource_retrieve',
+        'args' => array(
+          array(
+            'name' => 'nid',
+            'optional' => FALSE,
+            'source' => array('path' => 0),
+            'type' => 'int',
+            'description' => 'The nid of the submission node',
+          ),
+          array(
+            'name' => 'sid',
+            'optional' => FALSE,
+            'source' => array('path' => 1),
+            'type' => 'int',
+            'description' => 'The sid of the submission to get',
+          ),
+        ),
+        'access callback' => '_submission_resource_access',
+        'access arguments' => array('view'),
+        'access arguments append' => TRUE,
+      ),
+      'create' => array(
+        'file' => array('type' => 'inc', 'module' => 'webform_service'),
+        'help' => t('Creates a webform submission'),
+        'callback' => '_submission_resource_create',
+        'args' => array(
+          array(
+            'name' => 'nid',
+            'optional' => FALSE,
+            'source' => array('path' => 0),
+            'type' => 'int',
+            'description' => 'The nid of the submission node',
+          ),
+          array(
+            'name' => 'webform_submission',
+            'optional' => FALSE,
+            'source' => 'data',
+            'description' => 'The submission data to create',
+            'type' => 'array',
+          ),
+        ),
+        'access callback' => '_submission_resource_access',
+        'access arguments' => array('create'),
+        'access arguments append' => TRUE,
+      ),
+      'update' => array(
+        'file' => array('type' => 'inc', 'module' => 'webform_service'),
+        'help' => t('Updates a webform submission'),
+        'callback' => '_submission_resource_update',
+        'args' => array(
+          array(
+            'name' => 'nid',
+            'optional' => FALSE,
+            'source' => array('path' => 0),
+            'type' => 'int',
+            'description' => 'The nid of the submission node',
+          ),
+          array(
+            'name' => 'sid',
+            'optional' => FALSE,
+            'source' => array('path' => 1),
+            'type' => 'int',
+            'description' => 'The sid of the submission to update',
+          ),
+          array(
+            'name' => 'webform_submission',
+            'optional' => FALSE,
+            'source' => 'data',
+            'description' => 'The webform submission data to update',
+            'type' => 'array',
+          ),
+        ),
+        'access callback' => '_submission_resource_access',
+        'access arguments' => array('edit'),
+        'access arguments append' => TRUE,
+      ),
+      'delete' => array(
+        'file' => array('type' => 'inc', 'module' => 'webform_service'),
+        'help' => t('Deletes a webform submission'),
+        'callback' => '_submission_resource_delete',
+        'args' => array(
+          array(
+            'name' => 'nid',
+            'optional' => FALSE,
+            'source' => array('path' => 0),
+            'type' => 'int',
+          ),
+          array(
+            'name' => 'sid',
+            'optional' => FALSE,
+            'source' => array('path' => 1),
+            'type' => 'int',
+          ),
+        ),
+        'access callback' => '_submission_resource_access',
+        'access arguments' => array('delete'),
+        'access arguments append' => TRUE,
+      ),        
+      'index' => array(
+        'file' => array('type' => 'inc', 'module' => 'webform_service'),
+        'help' => t('Lists all webform submissions'),
+        'callback' => '_submission_resource_index',
+        'args' => array(
+          array(
+            'name' => 'page',
+            'optional' => TRUE,
+            'type' => 'int',
+            'description' => 'The zero-based index of the page to get, defaults to 0.',
+            'default value' => 0,
+            'source' => array('param' => 'page'),
+          ),
+          array(
+            'name' => 'fields',
+            'optional' => TRUE,
+            'type' => 'string',
+            'description' => 'The fields to get.',
+            'default value' => '*',
+            'source' => array('param' => 'fields'),
+          ),
+          array(
+            'name' => 'parameters',
+            'optional' => TRUE,
+            'type' => 'array',
+            'description' => 'Parameters array',
+            'default value' => array(),
+            'source' => array('param' => 'parameters'),
+          ),
+          array(
+            'name' => 'pagesize',
+            'optional' => TRUE,
+            'type' => 'init',
+            'description' => 'Number of records to get per page.',
+            'default value' => variable_get('services_webform_submission_index_page_size', 20),
+            'source' => array('param' => 'pagesize'),
+          ),
+        ),
+        'access arguments' => array('access all webform results'),
+      ),
+    )
+  );
+}
+
+
+/**
+ * Implements hook_services_resources_alter().
+ */
+function webform_service_services_resources_alter(&$resources, $endpoint) {
+  $submissions = array(
+    'file' => array('type' => 'inc', 'module' => 'webform_service'),
+    'help'                    => t('This method returns the number of submissions for a given webform.'),
+    'access callback'         => '_submission_resource_access',
+    'access arguments'        => array('view'),
+    'access arguments append' => TRUE,
+    'callback'                => '_submission_resource_load_webform_submissions',
+    'args'                    => array(
+      array(
+        'name'         => 'nid',
+        'type'         => 'int',
+        'description'  => t('The node id of the webform to load submission for.'),
+        'source'       => array('path' => 0),
+        'optional'     => FALSE,
+      ),
+      array(
+        'name'         => 'count',
+        'type'         => 'int',
+        'description'  => t('Number of submissions to load.'),
+        'source'       => array('param' => 'count'),
+        'optional'     => TRUE,
+      ),
+    ),
+  );
+  $resources['node']['relationships']['webform_submissions'] =  $submissions;
+}

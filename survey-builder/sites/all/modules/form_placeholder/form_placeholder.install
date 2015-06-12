@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * @file
+ * Installation functions for Form placeholder module.
+ */
+
+/**
+ * Implements hook_enable().
+ */
+function form_placeholder_enable() {
+  drupal_set_message(t(
+    'Form placeholder module enabled, now You can go to the <a href="@module-config">module configuration page</a>.',
+     array('@module-config' => url('admin/config/user-interface/form-placeholder'))));
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function form_placeholder_uninstall() {
+  variable_del('form_placeholder_include');
+  variable_del('form_placeholder_exclude');
+  variable_del('form_placeholder_required_indicator');
+}

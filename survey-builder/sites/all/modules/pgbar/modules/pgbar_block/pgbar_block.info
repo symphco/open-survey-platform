@@ -1,0 +1,14 @@
+name = Progress bar block
+description = Build stand-alone pgbar blocks with a fixed counter value.
+core = 7.x
+
+dependencies[] = pgbar
+dependencies[] = bean
+
+files[] = bean/pgbar_bean.inc.php
+; Information added by drupal.org packaging script on 2013-10-05
+version = "7.x-1.2"
+core = "7.x"
+project = "pgbar"
+datestamp = "1380984087"
+

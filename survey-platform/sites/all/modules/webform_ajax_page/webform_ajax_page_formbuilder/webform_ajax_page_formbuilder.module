@@ -1,0 +1,50 @@
+<?php
+/**
+ * @file
+ *
+ */
+/**
+ * Implements hook_form_builder_types().
+ */
+function webform_ajax_page_formbuilder_form_builder_types() {
+  $fields = array();
+
+  // The #type property of the field is used as the key.
+  $fields['ajax_page'] = array(
+    'title' => t('Ajax page'),
+    // Properties that may be edited on this field type.
+    'properties' => array(
+      'title',
+      'description',
+      'key',
+      'title_display',
+      'private',
+    ),
+    // A complete default form element used when a new field of this type
+    // is added to a form.
+    'default' => _form_builder_webform_default('ajax_page'),
+  );
+  $fields['ajax_page']['default']['#title'] = t('New ajax page');
+
+  // Return the array of supported fields, with a key for the form type that
+  // these fields apply to.
+  return array(
+    'webform' => $fields,
+  );
+}
+
+function _webform_form_builder_save_draggable_list($component, $form_element) {
+  $component['extra']['description'] = isset($form_element['#description']) ? $form_element['#description'] : NULL;
+  $component['extra']['title_display'] = isset($form_element['#title_display']) ? $form_element['#title_display'] : 'before';
+  return $component;
+}
+
+function webform_ajax_page_formbuilder_form_builder_preview_alter(&$element, $form_type, $form_id) {
+  if ($element['#type'] == 'ajax_page') {
+    drupal_add_css(drupal_get_path('module', 'webform_ajax_page_formbuilder') . '/webform_ajax_page_formbuilder.css');
+    drupal_add_js(drupal_get_path('module', 'webform_table_element_formbuilder') . '/webform_table_element_formbuilder.js', array('scope' => 'footer'));
+    if (count(element_children($element)) == 0) {
+      $element['#children'] = theme('form_builder_empty_fieldset');
+    }
+  }
+}
