@@ -1,6 +1,6 @@
 # User Guides and Features
 
-User Guides and Features: http://opengovt.github.io/open-data-platforms-documentation/
+User Guides and Features: https://opengovt.github.io/open-survey-platform/
 
 # Mobile Application (Android)
 
