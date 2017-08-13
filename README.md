@@ -6,18 +6,18 @@ It is important to note, that while the platform is sufficiently advanced in ter
 
 # Site Audit
 
-Prior to release a site audit was performed in December 2015 by a third-party to assess the structure, issues and recommendations for future development. As this platform is comprised of two Drupal instances, there are two site audit reports. They are available within the repository and via a direct link: https://github.com/opengovt/open-survey-platform/blob/master/2015-12-18-Survey-Builder-Site-Audit.pdf
-https://github.com/opengovt/open-survey-platform/blob/master/2015-12-18-Survey-Platform-Site-Audit.pdf
+Prior to release a site audit was performed in December 2015 by a third-party to assess the structure, issues and recommendations for future development. As this platform is comprised of two Drupal instances, there are two site audit reports. They are available within the repository and via a direct link: https://github.com/symph-team/open-survey-platform/blob/master/2015-12-18-Survey-Builder-Site-Audit.pdf
+https://github.com/symph-team/open-survey-platform/blob/master/2015-12-18-Survey-Platform-Site-Audit.pdf
 
 We strongly encourage that these recommendations be followed for all who would use this platform.
 
 # User Guides and Features
 
-User Guides and Features: https://opengovt.github.io/open-survey-platform/
+User Guides and Features: https://symph-team.github.io/open-survey-platform/
 
 # Mobile Application (Android)
 
-This web based platform works in collaboration with the mobile survey tool: https://github.com/opengovt/mobile-android-survey-app
+This web based platform works in collaboration with the mobile survey tool: https://github.com/symph-team/mobile-android-survey-app
 
 
 ---
